@@ -40,6 +40,11 @@ import { calculateNextDueDate, getDaysDiff, getReferencePeriod, getTodaySaoPaulo
 // Default initial Master Owner credentials state
 export const DEFAULT_MASTER_EMAIL = 'Alifermadeiro@hotmail.com';
 export const ALT_MASTER_EMAIL = 'alifer.qualicare@gmail.com';
+export const MASTER_EMAILS = [
+  'alifermadeiro@hotmail.com',
+  'alifer.qualicare@gmail.com',
+  'alifergael76@gmail.com',
+];
 
 // Default Company Settings
 export const DEFAULT_COMPANY_SETTINGS: CompanySettings = {

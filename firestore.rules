@@ -16,8 +16,9 @@ service cloud.firestore {
         request.auth.token.email == 'Alifermadeiro@hotmail.com' ||
         request.auth.token.email == 'alifer.qualicare@gmail.com' ||
         request.auth.token.email == 'alifermadeiro@hotmail.com' ||
-        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'MASTER_OWNER'
+        request.auth.token.email == 'alifergael76@gmail.com' ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'MASTER_OWNER')
       );
     }
 

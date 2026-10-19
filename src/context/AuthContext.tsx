@@ -16,6 +16,7 @@ import {
   DatabaseService,
   DEFAULT_MASTER_EMAIL,
   ALT_MASTER_EMAIL,
+  MASTER_EMAILS,
 } from '../lib/db.ts';
 import { generateSalt, hashPassword, verifyPassword } from '../lib/crypto.ts';
 
@@ -68,6 +69,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (fbUser) {
             const email = (fbUser.email || '').toLowerCase();
             const isMaster =
+              MASTER_EMAILS.some(m => m.toLowerCase() === email) ||
               email === DEFAULT_MASTER_EMAIL.toLowerCase() ||
               email === ALT_MASTER_EMAIL.toLowerCase();
 
