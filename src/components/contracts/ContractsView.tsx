@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   FileSignature,
   Plus,
@@ -12,13 +12,14 @@ import {
   ShieldAlert,
   Sparkles,
 } from 'lucide-react';
-import { Contract, Customer, Plan, ContractTemplate, CompanySettings } from '../../types/index.ts';
+import { Contract, Customer, Plan, ContractTemplate, CompanySettings, PartnerCompany, Branch } from '../../types/index.ts';
 import { formatBRL, formatBrDate, getTodaySaoPaulo } from '../../lib/date.ts';
 import { formatCpf } from '../../lib/cpf.ts';
 import { generateContractPdf, printContractDocument } from '../../lib/pdf.ts';
 import { Modal } from '../common/Modal.tsx';
 import { useAuth } from '../../context/AuthContext.tsx';
 import { DatabaseService, DEFAULT_CONTRACT_TEMPLATE } from '../../lib/db.ts';
+import { Building2, GitBranch, AlertTriangle, Calendar, CheckCircle2 } from 'lucide-react';
 
 interface ContractsViewProps {
   contracts: Contract[];
@@ -26,6 +27,8 @@ interface ContractsViewProps {
   plans: Plan[];
   templates: ContractTemplate[];
   settings: CompanySettings;
+  companies?: PartnerCompany[];
+  branches?: Branch[];
   selectedCustomerForContract?: Customer | null;
   onClearCustomerSelection?: () => void;
   onRefresh: () => void;
@@ -37,6 +40,8 @@ export const ContractsView: React.FC<ContractsViewProps> = ({
   plans,
   templates,
   settings,
+  companies = [],
+  branches = [],
   selectedCustomerForContract,
   onClearCustomerSelection,
   onRefresh,
@@ -133,6 +138,8 @@ export const ContractsView: React.FC<ContractsViewProps> = ({
       id: `contract-${Date.now()}`,
       documentNumber: docNum,
       customerId: cust.id,
+      companyId: cust.companyId || 'company-matriz-01',
+      branchId: cust.branchId,
       templateId: selectedTemplateId,
       title: contractTitle,
       content: editableBody,
@@ -143,7 +150,11 @@ export const ContractsView: React.FC<ContractsViewProps> = ({
         nome_plano: plan?.name || 'Personalizado',
         valor_contratado: formatBRL(customValue),
       },
-      status,
+      status: status === 'emitido' ? 'ativo' : status,
+      startDate,
+      dueDate: firstDueDate,
+      endDate,
+      contractValue: customValue,
       issuedAt: today,
       version: 1,
       createdAt: new Date().toISOString(),
@@ -154,6 +165,37 @@ export const ContractsView: React.FC<ContractsViewProps> = ({
     if (onClearCustomerSelection) onClearCustomerSelection();
     onRefresh();
   };
+
+  const expiryMetrics = useMemo(() => {
+    const todayMs = new Date().setHours(0, 0, 0, 0);
+    let vencidos = 0;
+    let em7Dias = 0;
+    let em15Dias = 0;
+    let em30Dias = 0;
+    let ativos = 0;
+
+    contracts.forEach(ctr => {
+      if (ctr.status === 'ativo' || ctr.status === 'assinado' || ctr.status === 'emitido') {
+        ativos++;
+      }
+      const expDateStr = ctr.endDate || ctr.dueDate;
+      if (expDateStr) {
+        const expMs = new Date(expDateStr).getTime();
+        const diffDays = Math.ceil((expMs - todayMs) / (1000 * 60 * 60 * 24));
+        if (diffDays < 0 || ctr.status === 'vencido') {
+          vencidos++;
+        } else if (diffDays <= 7) {
+          em7Dias++;
+        } else if (diffDays <= 15) {
+          em15Dias++;
+        } else if (diffDays <= 30) {
+          em30Dias++;
+        }
+      }
+    });
+
+    return { vencidos, em7Dias, em15Dias, em30Dias, ativos };
+  }, [contracts]);
 
   const filteredContracts = contracts.filter(c => {
     const matchSearch =
@@ -173,14 +215,14 @@ export const ContractsView: React.FC<ContractsViewProps> = ({
             Gerador & Gestão de Contratos
           </h2>
           <p className="text-xs text-slate-400 mt-0.5">
-            Modelos reutilizáveis com campos dinâmicos, prévia interativa, exportação em PDF e impressão A4.
+            Modelos reutilizáveis com campos dinâmicos, prévia interativa, monitoramento de vencimentos e controle de filiais.
           </p>
         </div>
 
         {canIssue && (
           <button
             onClick={() => handleStartGeneration()}
-            className="px-4 py-2 text-xs font-bold text-slate-950 bg-cyan-400 hover:bg-cyan-300 rounded-xl shadow-lg shadow-cyan-950/40 flex items-center gap-1.5 transition-all self-start sm:self-auto"
+            className="px-4 py-2 text-xs font-bold text-slate-950 bg-cyan-400 hover:bg-cyan-300 rounded-xl shadow-lg shadow-cyan-950/40 flex items-center gap-1.5 transition-all self-start sm:self-auto cursor-pointer"
           >
             <Plus className="w-4 h-4" />
             <span>Emitir Novo Contrato</span>
@@ -188,9 +230,57 @@ export const ContractsView: React.FC<ContractsViewProps> = ({
         )}
       </div>
 
+      {/* Contract Expiration Alerts KPI Bar */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <div className="bg-slate-900/40 p-3 rounded-xl border border-slate-800">
+          <div className="flex items-center justify-between text-xs text-slate-400 mb-1">
+            <span>Contratos Ativos</span>
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+          </div>
+          <div className="text-xl font-bold text-white">{expiryMetrics.ativos}</div>
+          <div className="text-[10px] text-slate-500">Vigência regular</div>
+        </div>
+
+        <div className="bg-slate-900/40 p-3 rounded-xl border border-slate-800">
+          <div className="flex items-center justify-between text-xs text-slate-400 mb-1">
+            <span>A vencer em 30d</span>
+            <Calendar className="w-3.5 h-3.5 text-cyan-400" />
+          </div>
+          <div className="text-xl font-bold text-cyan-400">{expiryMetrics.em30Dias}</div>
+          <div className="text-[10px] text-slate-500">Próximos 30 dias</div>
+        </div>
+
+        <div className="bg-slate-900/40 p-3 rounded-xl border border-slate-800">
+          <div className="flex items-center justify-between text-xs text-slate-400 mb-1">
+            <span>A vencer em 15d</span>
+            <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+          </div>
+          <div className="text-xl font-bold text-amber-400">{expiryMetrics.em15Dias}</div>
+          <div className="text-[10px] text-slate-500">Atenção comercial</div>
+        </div>
+
+        <div className="bg-slate-900/40 p-3 rounded-xl border border-slate-800">
+          <div className="flex items-center justify-between text-xs text-slate-400 mb-1">
+            <span>A vencer em 7d</span>
+            <AlertTriangle className="w-3.5 h-3.5 text-orange-400" />
+          </div>
+          <div className="text-xl font-bold text-orange-400">{expiryMetrics.em7Dias}</div>
+          <div className="text-[10px] text-slate-500">Urgência de renovação</div>
+        </div>
+
+        <div className="bg-slate-900/40 p-3 rounded-xl border border-slate-800">
+          <div className="flex items-center justify-between text-xs text-slate-400 mb-1">
+            <span>Vencidos</span>
+            <ShieldAlert className="w-3.5 h-3.5 text-rose-400" />
+          </div>
+          <div className="text-xl font-bold text-rose-400">{expiryMetrics.vencidos}</div>
+          <div className="text-[10px] text-slate-500">Requer regularização</div>
+        </div>
+      </div>
+
       {/* Filter and Search */}
-      <div className="bg-[#0b1222] border border-cyan-500/20 rounded-2xl p-4 shadow-xl flex items-center gap-3">
-        <div className="relative flex-1">
+      <div className="bg-[#0b1222] border border-cyan-500/20 rounded-2xl p-4 shadow-xl flex flex-col sm:flex-row items-center gap-3">
+        <div className="relative flex-1 w-full">
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
@@ -204,11 +294,16 @@ export const ContractsView: React.FC<ContractsViewProps> = ({
         <select
           value={statusFilter}
           onChange={e => setStatusFilter(e.target.value)}
-          className="px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-slate-300 focus:outline-none focus:border-cyan-500"
+          className="w-full sm:w-auto px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-slate-300 focus:outline-none focus:border-cyan-500"
         >
           <option value="todos">Todos os Status</option>
+          <option value="ativo">Ativo</option>
+          <option value="aguardando_assinatura">Aguardando Assinatura</option>
           <option value="emitido">Emitido</option>
           <option value="assinado">Assinado</option>
+          <option value="vencido">Vencido</option>
+          <option value="suspenso">Suspenso</option>
+          <option value="encerrado">Encerrado</option>
           <option value="rascunho">Rascunho</option>
           <option value="cancelado">Cancelado</option>
         </select>
@@ -249,7 +344,14 @@ export const ContractsView: React.FC<ContractsViewProps> = ({
                       </td>
                       <td className="py-3 px-4">
                         <div className="text-slate-200 font-medium">{cust?.name || ctr.dynamicValues?.nome_cliente}</div>
-                        <div className="text-[10px] text-slate-500">{cust?.code}</div>
+                        <div className="text-[10px] text-slate-500 flex items-center gap-1.5 mt-0.5">
+                          <span>{cust?.code}</span>
+                          {ctr.branchId && (
+                            <span className="px-1.5 py-0.2 rounded bg-purple-950/70 text-purple-300 border border-purple-800/40 text-[9px]">
+                              {branches.find(b => b.id === ctr.branchId)?.name || 'Filial'}
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="py-3 px-4 text-slate-400">
                         {formatBrDate(ctr.issuedAt)}
@@ -260,14 +362,20 @@ export const ContractsView: React.FC<ContractsViewProps> = ({
                       <td className="py-3 px-4">
                         <span
                           className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                            ctr.status === 'assinado'
+                            ctr.status === 'ativo' || ctr.status === 'assinado'
                               ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                              : ctr.status === 'vencido'
+                              ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
+                              : ctr.status === 'suspenso'
+                              ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                              : ctr.status === 'aguardando_assinatura'
+                              ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
                               : ctr.status === 'emitido'
                               ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30'
-                              : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                              : 'bg-slate-800 text-slate-400 border border-slate-700'
                           }`}
                         >
-                          {ctr.status}
+                          {ctr.status.replace('_', ' ')}
                         </span>
                       </td>
                       <td className="py-3 px-4 text-right">

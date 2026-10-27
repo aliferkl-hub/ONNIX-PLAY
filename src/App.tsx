@@ -15,6 +15,8 @@ import { WhatsAppView } from './components/whatsapp/WhatsAppView.tsx';
 import { PartnersView } from './components/partners/PartnersView.tsx';
 import { CommissionsView } from './components/commissions/CommissionsView.tsx';
 import { EmployeesView } from './components/employees/EmployeesView.tsx';
+import { CompaniesView } from './components/companies/CompaniesView.tsx';
+import { BranchesView } from './components/branches/BranchesView.tsx';
 import { ReportsView } from './components/reports/ReportsView.tsx';
 import { SettingsView } from './components/settings/SettingsView.tsx';
 import { AuditView } from './components/audit/AuditView.tsx';
@@ -32,6 +34,8 @@ import {
   CompanySettings,
   MessageLog,
   AuditLog,
+  PartnerCompany,
+  Branch,
 } from './types/index.ts';
 import {
   DatabaseService,
@@ -47,6 +51,9 @@ const MainLayout: React.FC = () => {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
   // App domain state
+  const [companies, setCompanies] = useState<PartnerCompany[]>([]);
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [selectedBranchCompanyId, setSelectedBranchCompanyId] = useState<string | undefined>(undefined);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [plans, setPlans] = useState<Plan[]>(INITIAL_PLANS);
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
@@ -68,6 +75,8 @@ const MainLayout: React.FC = () => {
   const loadAllData = useCallback(async () => {
     try {
       const [
+        comps,
+        brnchs,
         custs,
         plns,
         subs,
@@ -82,6 +91,8 @@ const MainLayout: React.FC = () => {
         audits,
         sttgs,
       ] = await Promise.all([
+        DatabaseService.getCompanies(),
+        DatabaseService.getBranches(),
         DatabaseService.getCustomers(),
         DatabaseService.getPlans(),
         DatabaseService.getSubscriptions(),
@@ -97,6 +108,8 @@ const MainLayout: React.FC = () => {
         DatabaseService.getSettings(),
       ]);
 
+      setCompanies(comps);
+      setBranches(brnchs);
       setCustomers(custs);
       setPlans(plns);
       setSubscriptions(subs);
@@ -173,6 +186,7 @@ const MainLayout: React.FC = () => {
           pendingRemindersCount={pendingRemindersCount}
           onNavigateToWhatsApp={() => setCurrentTab('whatsapp')}
           onRefreshData={loadAllData}
+          companies={companies}
         />
 
         <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
@@ -186,7 +200,33 @@ const MainLayout: React.FC = () => {
               commissions={commissions}
               employees={employees}
               plans={plans}
+              companies={companies}
+              branches={branches}
               onNavigate={tab => setCurrentTab(tab)}
+            />
+          )}
+
+          {currentTab === 'companies' && (
+            <CompaniesView
+              companies={companies}
+              branches={branches}
+              customers={customers}
+              onRefresh={loadAllData}
+              onNavigateToBranches={companyId => {
+                setSelectedBranchCompanyId(companyId);
+                setCurrentTab('branches');
+              }}
+            />
+          )}
+
+          {currentTab === 'branches' && (
+            <BranchesView
+              branches={branches}
+              companies={companies}
+              customers={customers}
+              contracts={contracts}
+              onRefresh={loadAllData}
+              preselectedCompanyId={selectedBranchCompanyId}
             />
           )}
 
@@ -199,6 +239,8 @@ const MainLayout: React.FC = () => {
               contracts={contracts}
               invoices={invoices}
               subscriptions={subscriptions}
+              companies={companies}
+              branches={branches}
               onRefresh={loadAllData}
               onOpenContractGenerator={cust => {
                 setCustomerForContract(cust);
@@ -228,6 +270,8 @@ const MainLayout: React.FC = () => {
               plans={plans}
               templates={templates}
               settings={settings}
+              companies={companies}
+              branches={branches}
               selectedCustomerForContract={customerForContract}
               onClearCustomerSelection={() => setCustomerForContract(null)}
               onRefresh={loadAllData}
@@ -302,7 +346,12 @@ const MainLayout: React.FC = () => {
           )}
 
           {currentTab === 'employees' && (
-            <EmployeesView employees={employees} onRefresh={loadAllData} />
+            <EmployeesView
+              employees={employees}
+              companies={companies}
+              branches={branches}
+              onRefresh={loadAllData}
+            />
           )}
 
           {currentTab === 'reports' && (

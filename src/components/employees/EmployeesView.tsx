@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { EmployeeProfile, PermissionKey, UserStatus } from '../../types/index.ts';
-import { UserCheck, Plus, Shield, ShieldOff, Edit3, Trash2, CheckSquare, Square, AlertCircle } from 'lucide-react';
+import { EmployeeProfile, PermissionKey, UserStatus, UserRole, PartnerCompany, Branch } from '../../types/index.ts';
+import { UserCheck, Plus, Shield, ShieldOff, Edit3, Trash2, CheckSquare, Square, AlertCircle, Building2, GitBranch } from 'lucide-react';
 import { Modal } from '../common/Modal.tsx';
 import { useAuth } from '../../context/AuthContext.tsx';
 import { DatabaseService } from '../../lib/db.ts';
@@ -9,6 +9,8 @@ import { ConfirmDialog } from '../common/ConfirmDialog.tsx';
 
 interface EmployeesViewProps {
   employees: EmployeeProfile[];
+  companies?: PartnerCompany[];
+  branches?: Branch[];
   onRefresh: () => void;
 }
 
@@ -24,9 +26,17 @@ const AVAILABLE_PERMISSIONS: { key: PermissionKey; label: string; desc: string }
   { key: 'administrar_parceiros', label: 'Administrar Parceiros', desc: 'Cadastrar e editar afiliados' },
   { key: 'consultar_comissoes', label: 'Consultar Comissões', desc: 'Ver valores calculados e aprovar comissões' },
   { key: 'exportar_dados', label: 'Exportar Dados', desc: 'Baixar planilhas em CSV' },
+  { key: 'gerenciar_empresas', label: 'Gerenciar Empresas', desc: 'Cadastrar e configurar empresas parceiras' },
+  { key: 'gerenciar_filiais', label: 'Gerenciar Filiais', desc: 'Cadastrar e gerenciar filiais e unidades operacionais' },
+  { key: 'transferir_registros', label: 'Transferir Registros', desc: 'Transferir clientes e contratos entre filiais' },
 ];
 
-export const EmployeesView: React.FC<EmployeesViewProps> = ({ employees, onRefresh }) => {
+export const EmployeesView: React.FC<EmployeesViewProps> = ({
+  employees,
+  companies = [],
+  branches = [],
+  onRefresh,
+}) => {
   const { isMasterOwner, currentUser } = useAuth();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<EmployeeProfile | null>(null);
@@ -36,6 +46,9 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({ employees, onRefre
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [role, setRole] = useState('Atendente Comercial');
+  const [userRoleType, setUserRoleType] = useState<UserRole>('EMPLOYEE');
+  const [companyId, setCompanyId] = useState<string>('company-matriz-01');
+  const [branchId, setBranchId] = useState<string>('branch-matriz-01');
   const [status, setStatus] = useState<UserStatus>('ativo');
   const [selectedPermissions, setSelectedPermissions] = useState<PermissionKey[]>([
     'consultar_clientes',
@@ -62,6 +75,9 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({ employees, onRefre
     setEmail('');
     setPhone('+55 ');
     setRole('Atendente Comercial');
+    setUserRoleType('EMPLOYEE');
+    setCompanyId(companies[0]?.id || 'company-matriz-01');
+    setBranchId(branches[0]?.id || 'branch-matriz-01');
     setStatus('ativo');
     setSelectedPermissions([
       'consultar_clientes',
@@ -78,6 +94,9 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({ employees, onRefre
     setEmail(emp.email);
     setPhone(emp.phone || '');
     setRole(emp.role);
+    setUserRoleType(emp.userRoleType || 'EMPLOYEE');
+    setCompanyId(emp.companyId || companies[0]?.id || 'company-matriz-01');
+    setBranchId(emp.branchId || '');
     setStatus(emp.status);
     setSelectedPermissions(emp.permissions || []);
     setIsModalOpen(true);
@@ -104,6 +123,9 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({ employees, onRefre
       email: email.trim().toLowerCase(),
       phone: phone.trim(),
       role: role.trim(),
+      userRoleType,
+      companyId,
+      branchId,
       status,
       permissions: selectedPermissions,
       createdAt: editingEmployee ? editingEmployee.createdAt : new Date().toISOString(),
@@ -182,10 +204,32 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({ employees, onRefre
                   </span>
                 </div>
 
-                <h3 className="text-base font-bold text-white mb-1">{emp.name}</h3>
-                <p className="text-xs text-slate-400 mb-4">{emp.email}</p>
+                <h3 className="text-base font-bold text-white mb-0.5">{emp.name}</h3>
+                <p className="text-xs text-slate-400 mb-3">{emp.email}</p>
+
+                {/* Company & Branch Linkage Badge */}
+                <div className="flex flex-col gap-1 mb-3 text-[11px] text-slate-300">
+                  <div className="flex items-center gap-1.5 text-cyan-400 font-medium">
+                    <Building2 className="w-3.5 h-3.5" />
+                    <span>
+                      {companies.find(c => c.id === emp.companyId)?.tradeName || 'Matriz Principal'}
+                    </span>
+                  </div>
+                  {emp.branchId && (
+                    <div className="flex items-center gap-1.5 text-purple-300 font-medium">
+                      <GitBranch className="w-3.5 h-3.5" />
+                      <span>
+                        {branches.find(b => b.id === emp.branchId)?.name || 'Filial Designada'}
+                      </span>
+                    </div>
+                  )}
+                </div>
 
                 <div className="p-3 bg-slate-900/80 rounded-xl border border-slate-800 space-y-1 text-xs text-slate-300 mb-4">
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Perfil de Acesso:</span>
+                    <span className="font-mono text-cyan-300 font-bold">{emp.userRoleType || 'PADRÃO'}</span>
+                  </div>
                   <div className="flex justify-between">
                     <span className="text-slate-400">Permissões ativas:</span>
                     <span className="font-bold text-cyan-400">{emp.permissions.length} módulos</span>
@@ -293,6 +337,68 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({ employees, onRefre
                 <option value="ativo">Ativo</option>
                 <option value="inativo">Inativo / Desligado</option>
               </select>
+            </div>
+          </div>
+
+          {/* Multiempresa Role & Assignment */}
+          <div className="p-3 bg-slate-950/80 rounded-xl border border-slate-800 space-y-3">
+            <span className="text-xs font-bold text-cyan-400 uppercase tracking-wider flex items-center gap-1.5">
+              <Building2 className="w-3.5 h-3.5" /> Atribuição Multiempresa & Nível de Acesso
+            </span>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1">Perfil do Sistema *</label>
+                <select
+                  value={userRoleType}
+                  onChange={e => setUserRoleType(e.target.value as UserRole)}
+                  className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-cyan-500"
+                >
+                  <option value="EMPLOYEE">Colaborador Geral</option>
+                  <option value="EMPRESA_ADMIN">Administrador da Empresa</option>
+                  <option value="GERENTE_FILIAL">Gerente de Filial</option>
+                  <option value="COMERCIAL">Comercial / Vendas</option>
+                  <option value="FINANCEIRO">Financeiro / Cobrança</option>
+                  <option value="CONSULTA">Apenas Consulta</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1">Empresa Vinculada *</label>
+                <select
+                  value={companyId}
+                  onChange={e => {
+                    const cId = e.target.value;
+                    setCompanyId(cId);
+                    const validB = branches.filter(b => b.companyId === cId);
+                    setBranchId(validB[0]?.id || '');
+                  }}
+                  className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-cyan-500"
+                >
+                  {companies.map(c => (
+                    <option key={c.id} value={c.id}>
+                      {c.tradeName} ({c.code})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1">Filial de Atuação</label>
+                <select
+                  value={branchId}
+                  onChange={e => setBranchId(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-cyan-500"
+                >
+                  <option value="">Matriz Geral (Sem restrição de filial)</option>
+                  {branches
+                    .filter(b => !companyId || b.companyId === companyId)
+                    .map(b => (
+                      <option key={b.id} value={b.id}>
+                        {b.name} ({b.city}/{b.state})
+                      </option>
+                    ))}
+                </select>
+              </div>
             </div>
           </div>
 

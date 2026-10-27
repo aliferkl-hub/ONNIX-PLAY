@@ -17,11 +17,16 @@ import {
   ArrowUpRight,
   Filter,
   BarChart3,
+  Building2,
+  GitBranch,
+  Layers,
+  Globe,
 } from 'lucide-react';
 import { StatCard } from '../common/StatCard.tsx';
-import { Customer, Invoice, Payment, Contract, Partner, Commission, EmployeeProfile, Plan } from '../../types/index.ts';
+import { Customer, Invoice, Payment, Contract, Partner, Commission, EmployeeProfile, Plan, PartnerCompany, Branch } from '../../types/index.ts';
 import { formatBRL, formatBrDate, getDaysDiff, getTodaySaoPaulo } from '../../lib/date.ts';
 import { NavTab } from '../layout/Sidebar.tsx';
+import { useAuth } from '../../context/AuthContext.tsx';
 
 interface DashboardViewProps {
   customers: Customer[];
@@ -32,6 +37,8 @@ interface DashboardViewProps {
   commissions: Commission[];
   employees: EmployeeProfile[];
   plans: Plan[];
+  companies?: PartnerCompany[];
+  branches?: Branch[];
   onNavigate: (tab: NavTab) => void;
 }
 
@@ -44,8 +51,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   commissions,
   employees,
   plans,
+  companies = [],
+  branches = [],
   onNavigate,
 }) => {
+  const { isMasterOwner, activeCompanyId, setActiveCompanyId } = useAuth();
   const [periodFilter, setPeriodFilter] = useState<'mes_atual' | 'trimestre' | 'ano' | 'todos'>('mes_atual');
   const today = getTodaySaoPaulo();
   const currentMonthYear = today.slice(0, 7); // e.g. "2026-10"
@@ -160,6 +170,69 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           ))}
         </div>
       </div>
+
+      {/* MULTIEMPRESA OVERVIEW STRIP (for Master Owner or Company Admins) */}
+      {isMasterOwner && companies.length > 0 && (
+        <div className="bg-gradient-to-r from-cyan-950/40 via-blue-950/30 to-purple-950/40 p-4 rounded-2xl border border-cyan-500/30 shadow-lg">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-3">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 rounded-xl bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">
+                <Globe className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                  Rede Multiempresa ONNIX PLAY
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-cyan-950 text-cyan-300 border border-cyan-800">
+                    {activeCompanyId === 'TODAS'
+                      ? 'VISÃO GLOBAL CONSOLIDADA'
+                      : `FILTRADO: ${companies.find(c => c.id === activeCompanyId)?.tradeName || 'EMPRESA'}`}
+                  </span>
+                </h3>
+                <p className="text-xs text-slate-400">Consolidação em tempo real de matrizes, filiais e volume operacional</p>
+              </div>
+            </div>
+            {activeCompanyId !== 'TODAS' && (
+              <button
+                onClick={() => setActiveCompanyId('TODAS')}
+                className="text-xs text-cyan-400 hover:text-cyan-300 font-semibold underline self-start md:self-auto cursor-pointer"
+              >
+                ← Voltar para Rede Global Completa
+              </button>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800">
+              <span className="text-[11px] text-slate-400 font-medium">Empresas Parceiras</span>
+              <div className="text-xl font-bold text-white mt-1 flex items-center gap-1.5">
+                <Building2 className="w-4 h-4 text-cyan-400" />
+                <span>{companies.length}</span>
+              </div>
+            </div>
+            <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800">
+              <span className="text-[11px] text-slate-400 font-medium">Filiais Registradas</span>
+              <div className="text-xl font-bold text-purple-300 mt-1 flex items-center gap-1.5">
+                <GitBranch className="w-4 h-4 text-purple-400" />
+                <span>{branches.length}</span>
+              </div>
+            </div>
+            <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800">
+              <span className="text-[11px] text-slate-400 font-medium">Clientes na Rede</span>
+              <div className="text-xl font-bold text-emerald-400 mt-1 flex items-center gap-1.5">
+                <Users className="w-4 h-4 text-emerald-400" />
+                <span>{customers.length}</span>
+              </div>
+            </div>
+            <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800">
+              <span className="text-[11px] text-slate-400 font-medium">Contratos Emitidos</span>
+              <div className="text-xl font-bold text-blue-400 mt-1 flex items-center gap-1.5">
+                <FileCheck2 className="w-4 h-4 text-blue-400" />
+                <span>{contracts.length}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* SECTION 1: FINANCIAL COMPARISON STRIP */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

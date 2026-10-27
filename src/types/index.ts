@@ -1,10 +1,17 @@
 /**
- * Types and Data Contracts for ONNIX PLAY Gestão
+ * Types and Data Contracts for ONNIX PLAY Gestão Empresarial Multiempresa
  */
 
-export type UserRole = 'MASTER_OWNER' | 'EMPLOYEE';
+export type UserRole =
+  | 'MASTER_OWNER'
+  | 'EMPRESA_ADMIN'
+  | 'GERENTE_FILIAL'
+  | 'COMERCIAL'
+  | 'FINANCEIRO'
+  | 'CONSULTA'
+  | 'EMPLOYEE';
 
-export type UserStatus = 'ativo' | 'inativo';
+export type UserStatus = 'ativo' | 'inativo' | 'suspenso';
 
 export type PermissionKey =
   | 'consultar_clientes'
@@ -17,7 +24,10 @@ export type PermissionKey =
   | 'consultar_relatorios'
   | 'administrar_parceiros'
   | 'consultar_comissoes'
-  | 'exportar_dados';
+  | 'exportar_dados'
+  | 'gerenciar_empresas'
+  | 'gerenciar_filiais'
+  | 'transferir_registros';
 
 export interface UserProfile {
   uid: string;
@@ -25,6 +35,8 @@ export interface UserProfile {
   displayName: string;
   role: UserRole;
   status: UserStatus;
+  companyId?: string; // null for Master Owner (global access)
+  branchId?: string;  // null for Master Owner or Company Admin
   isTwoFactorEnabled?: boolean;
   twoFactorSecret?: string;
   createdAt: string;
@@ -36,11 +48,71 @@ export interface EmployeeProfile {
   name: string;
   email: string;
   phone?: string;
-  role: string; // e.g. "Gerente Comercial", "Atendente", "Operador Financeiro"
+  role: string; // e.g. "Administrador da Empresa", "Gerente de Filial", "Comercial"
+  userRoleType: UserRole;
+  companyId?: string;
+  branchId?: string;
   status: UserStatus;
   permissions: PermissionKey[];
   createdAt: string;
   createdBy: string;
+}
+
+export type CompanyStatus = 'ativa' | 'pendente' | 'suspensa' | 'inativa';
+
+export interface PartnerCompany {
+  id: string;
+  code: string; // e.g. EMP-001
+  corporateName: string; // Razão Social
+  tradeName: string; // Nome Fantasia
+  cnpj: string;
+  contactName: string; // Responsável pela empresa
+  contactRole: string;
+  email: string;
+  phone: string;
+  cep: string;
+  street: string;
+  number: string;
+  complement?: string;
+  neighborhood: string;
+  city: string;
+  state: string;
+  logoUrl?: string;
+  status: CompanyStatus;
+  planContracted: string; // e.g. "Empresarial Platinum", "Enterprise 50"
+  branchesLimit: number;
+  clientsLimit: number;
+  modulesAllowed: string[]; // ['clientes', 'contratos', 'filiais', 'cobrancas', 'relatorios']
+  adminEmail: string;
+  adminName: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export type BranchStatus = 'ativa' | 'suspensa' | 'inativa';
+
+export interface Branch {
+  id: string;
+  code: string; // e.g. FIL-001
+  companyId: string; // Empresa matriz vinculada
+  name: string; // Nome da unidade (e.g. "Filial Campinas")
+  cnpj?: string;
+  managerName: string; // Responsável pela filial
+  managerEmail: string;
+  phone: string;
+  email: string;
+  cep: string;
+  street: string;
+  number: string;
+  complement?: string;
+  neighborhood: string;
+  city: string;
+  state: string;
+  status: BranchStatus;
+  notes?: string;
+  createdAt: string;
+  updatedAt?: string;
 }
 
 export type CustomerStatus = 'ativo' | 'inativo' | 'pendente' | 'inadimplente';
@@ -62,6 +134,8 @@ export interface Customer {
   reference?: string;
   registrationDate: string;
   source: string; // "Indicação", "Instagram", "Google", "WhatsApp", etc.
+  companyId: string; // Empresa responsável (Multiempresa)
+  branchId?: string; // Filial responsável
   employeeResponsibleId?: string;
   partnerId?: string;
   notes?: string;
@@ -93,6 +167,8 @@ export type SubscriptionStatus = 'ativa' | 'cancelada' | 'suspensa' | 'finalizad
 export interface Subscription {
   id: string;
   customerId: string;
+  companyId?: string;
+  branchId?: string;
   planId: string;
   startDate: string; // YYYY-MM-DD
   firstDueDate: string; // YYYY-MM-DD
@@ -108,12 +184,29 @@ export interface Subscription {
   createdAt: string;
 }
 
-export type ContractStatus = 'rascunho' | 'emitido' | 'assinado' | 'cancelado';
+export type ContractStatus =
+  | 'rascunho'
+  | 'aguardando_assinatura'
+  | 'emitido'
+  | 'assinado'
+  | 'ativo'
+  | 'suspenso'
+  | 'encerrado'
+  | 'vencido'
+  | 'cancelado';
+
+export interface ContractAttachment {
+  name: string;
+  url: string;
+  uploadedAt: string;
+}
 
 export interface Contract {
   id: string;
   documentNumber: string; // e.g. ONX-CTR-2026-001
   customerId: string;
+  companyId: string; // Empresa responsável
+  branchId?: string;  // Filial responsável
   subscriptionId?: string;
   templateId?: string;
   title: string;
@@ -122,9 +215,15 @@ export interface Contract {
   dynamicValues: Record<string, string>;
   status: ContractStatus;
   issuedAt: string;
+  startDate?: string;
+  dueDate?: string;
+  endDate?: string;
+  contractValue?: number;
   signedAt?: string;
   signedBy?: string;
   version: number;
+  attachments?: ContractAttachment[];
+  notes?: string;
   createdAt: string;
   updatedAt?: string;
 }
@@ -155,6 +254,8 @@ export interface Invoice {
   id: string;
   invoiceNumber: string; // e.g. FAT-2026-0001
   customerId: string;
+  companyId?: string;
+  branchId?: string;
   subscriptionId?: string;
   planId?: string;
   amount: number;
@@ -177,6 +278,8 @@ export interface Payment {
   id: string;
   invoiceId: string;
   customerId: string;
+  companyId?: string;
+  branchId?: string;
   amount: number;
   paymentDate: string;
   paymentMethod: PaymentMethod;
@@ -265,6 +368,8 @@ export interface AuditLog {
   id: string;
   userId?: string;
   userEmail: string;
+  companyId?: string;
+  branchId?: string;
   action: string;
   entityType: string;
   entityId: string;

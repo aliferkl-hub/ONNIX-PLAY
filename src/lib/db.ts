@@ -1,6 +1,6 @@
 /**
  * Firestore Database Service and Local Persistent Fallback
- * Implements strict CRUD, audit logging, recurrence engine, and seed configuration
+ * Implements strict CRUD, multi-company/branch isolation, audit logging, recurrence engine, and seed configuration
  */
 
 import {
@@ -9,10 +9,8 @@ import {
   getDocs,
   getDoc,
   setDoc,
-  updateDoc,
   deleteDoc,
   query,
-  where,
   orderBy,
   limit,
 } from 'firebase/firestore';
@@ -33,7 +31,10 @@ import {
   WhatsAppApiSettings,
   MasterOwnerCredentials,
   MessageLog,
-  ReminderJob,
+  PartnerCompany,
+  Branch,
+  CompanyStatus,
+  BranchStatus,
 } from '../types/index.ts';
 import { calculateNextDueDate, getDaysDiff, getReferencePeriod, getTodaySaoPaulo } from './date.ts';
 
@@ -44,6 +45,178 @@ export const MASTER_EMAILS = [
   'alifermadeiro@hotmail.com',
   'alifer.qualicare@gmail.com',
   'alifergael76@gmail.com',
+];
+
+// Default Matriz Company (Primary Enterprise)
+export const DEFAULT_MATRIZ_COMPANY: PartnerCompany = {
+  id: 'company-matriz-01',
+  code: 'EMP-001',
+  corporateName: 'ONNIX PLAY COMUNICACAO & TECNOLOGIA LTDA',
+  tradeName: 'ONNIX PLAY MATRIZ',
+  cnpj: '48.912.430/0001-85',
+  contactName: 'Alifer Madeira (Master Owner)',
+  contactRole: 'Diretor Presidente',
+  email: 'Alifermadeiro@hotmail.com',
+  phone: '+55 (11) 3280-4590',
+  cep: '01310-100',
+  street: 'Av. Paulista',
+  number: '1000',
+  complement: 'Andar 14, Conjunto 142',
+  neighborhood: 'Bela Vista',
+  city: 'São Paulo',
+  state: 'SP',
+  status: 'ativa',
+  planContracted: 'Enterprise Global Unlimited',
+  branchesLimit: 999,
+  clientsLimit: 99999,
+  modulesAllowed: ['empresas', 'filiais', 'clientes', 'contratos', 'mensalistas', 'planos', 'cobrancas', 'pagamentos', 'vencimentos', 'whatsapp', 'parceiros', 'comissoes', 'usuarios', 'relatorios', 'auditoria'],
+  adminEmail: 'Alifermadeiro@hotmail.com',
+  adminName: 'Master Owner',
+  notes: 'Sede central e matriz controladora da rede ONNIX PLAY.',
+  createdAt: '2026-01-01',
+};
+
+// Initial Seed Companies
+export const INITIAL_COMPANIES: PartnerCompany[] = [
+  DEFAULT_MATRIZ_COMPANY,
+  {
+    id: 'company-parceira-02',
+    code: 'EMP-002',
+    corporateName: 'TECHPLAY ENTRETENIMENTO & CONECTIVIDADE LTDA',
+    tradeName: 'TECHPLAY BRASIL (PARCEIRA)',
+    cnpj: '33.821.902/0001-44',
+    contactName: 'Marcelo Augusto Valença',
+    contactRole: 'Sócio-Diretor',
+    email: 'marcelo@techplaybrasil.com.br',
+    phone: '+55 (21) 3900-8800',
+    cep: '20040-002',
+    street: 'Av. Rio Branco',
+    number: '156',
+    complement: 'Sala 801',
+    neighborhood: 'Centro',
+    city: 'Rio de Janeiro',
+    state: 'RJ',
+    status: 'ativa',
+    planContracted: 'Empresarial Premium (Até 10 Filiais)',
+    branchesLimit: 10,
+    clientsLimit: 2500,
+    modulesAllowed: ['filiais', 'clientes', 'contratos', 'cobrancas', 'relatorios'],
+    adminEmail: 'admin@techplaybrasil.com.br',
+    adminName: 'Administrador TechPlay',
+    notes: 'Empresa parceira autorizada para operação no estado do Rio de Janeiro e Minas Gerais.',
+    createdAt: '2026-01-10',
+  },
+  {
+    id: 'company-parceira-03',
+    code: 'EMP-003',
+    corporateName: 'SULSTREAM DISTRIBUIDORA DE SERVICOS LTDA',
+    tradeName: 'SULSTREAM SUL',
+    cnpj: '19.402.118/0001-92',
+    contactName: 'Claudia Bittencourt',
+    contactRole: 'Diretora Regional',
+    email: 'claudia@sulstream.com.br',
+    phone: '+55 (41) 3044-7700',
+    cep: '80020-010',
+    street: 'Rua XV de Novembro',
+    number: '400',
+    neighborhood: 'Centro',
+    city: 'Curitiba',
+    state: 'PR',
+    status: 'ativa',
+    planContracted: 'Empresarial Pro (Até 5 Filiais)',
+    branchesLimit: 5,
+    clientsLimit: 1000,
+    modulesAllowed: ['filiais', 'clientes', 'contratos', 'cobrancas', 'relatorios'],
+    adminEmail: 'admin@sulstream.com.br',
+    adminName: 'Administrador SulStream',
+    notes: 'Atuação na região Sul com foco em assinaturas empresariais.',
+    createdAt: '2026-02-01',
+  },
+];
+
+// Initial Seed Branches
+export const INITIAL_BRANCHES: Branch[] = [
+  {
+    id: 'branch-matriz-01',
+    code: 'FIL-001',
+    companyId: 'company-matriz-01',
+    name: 'Unidade Central Jardins (SP)',
+    cnpj: '48.912.430/0001-85',
+    managerName: 'Roberto Silva',
+    managerEmail: 'roberto.silva@onnixplay.com.br',
+    phone: '+55 (11) 98888-1122',
+    email: 'jardins@onnixplay.com.br',
+    cep: '01414-001',
+    street: 'Alameda Santos',
+    number: '1293',
+    neighborhood: 'Cerqueira César',
+    city: 'São Paulo',
+    state: 'SP',
+    status: 'ativa',
+    notes: 'Unidade polo e atendimento regional capital.',
+    createdAt: '2026-01-01',
+  },
+  {
+    id: 'branch-campinas-02',
+    code: 'FIL-002',
+    companyId: 'company-matriz-01',
+    name: 'Filial Campinas & Região',
+    cnpj: '48.912.430/0002-66',
+    managerName: 'Fernanda Lima',
+    managerEmail: 'fernanda.lima@onnixplay.com.br',
+    phone: '+55 (19) 97777-2233',
+    email: 'campinas@onnixplay.com.br',
+    cep: '13010-111',
+    street: 'Av. Francisco Glicério',
+    number: '850',
+    neighborhood: 'Centro',
+    city: 'Campinas',
+    state: 'SP',
+    status: 'ativa',
+    notes: 'Atendimento do interior e polo tecnológico.',
+    createdAt: '2026-01-15',
+  },
+  {
+    id: 'branch-techplay-rj',
+    code: 'FIL-003',
+    companyId: 'company-parceira-02',
+    name: 'Unidade Barra da Tijuca',
+    cnpj: '33.821.902/0002-25',
+    managerName: 'Gabriel Nogueira',
+    managerEmail: 'gabriel@techplaybrasil.com.br',
+    phone: '+55 (21) 98111-4455',
+    email: 'barra@techplaybrasil.com.br',
+    cep: '22640-100',
+    street: 'Av. das Américas',
+    number: '3500',
+    complement: 'Bloco 4, Loja 110',
+    neighborhood: 'Barra da Tijuca',
+    city: 'Rio de Janeiro',
+    state: 'RJ',
+    status: 'ativa',
+    notes: 'Unidade comercial da parceira TechPlay.',
+    createdAt: '2026-01-20',
+  },
+  {
+    id: 'branch-sulstream-cwb',
+    code: 'FIL-004',
+    companyId: 'company-parceira-03',
+    name: 'Unidade Batel Curitiba',
+    cnpj: '19.402.118/0002-73',
+    managerName: 'Rodrigo Antunes',
+    managerEmail: 'rodrigo@sulstream.com.br',
+    phone: '+55 (41) 99222-3344',
+    email: 'batel@sulstream.com.br',
+    cep: '80420-000',
+    street: 'Av. do Batel',
+    number: '1230',
+    neighborhood: 'Batel',
+    city: 'Curitiba',
+    state: 'PR',
+    status: 'ativa',
+    notes: 'Filial regional da parceira SulStream.',
+    createdAt: '2026-02-05',
+  },
 ];
 
 // Default Company Settings
@@ -72,20 +245,21 @@ export const DEFAULT_WHATSAPP_SETTINGS: WhatsAppApiSettings = {
 
 export const DEFAULT_CONTRACT_TEMPLATE: ContractTemplate = {
   id: 'template-padrao-01',
-  name: 'Contrato Padrão de Assinatura ONNIX PLAY',
-  description: 'Modelo oficial para contratações mensais, trimestrais e anuais',
+  name: 'Contrato Padrão de Assinatura Empresarial ONNIX PLAY',
+  description: 'Modelo oficial para contratações empresariais e multiempresa',
   isDefault: true,
   createdAt: '2026-01-01',
-  defaultClauses: `CLÁUSULA 1ª - DO OBJETO: O presente contrato tem por objeto a prestação de serviços de assinatura do plano {{nome_plano}} pela CONTRATADA ao CONTRATANTE.
+  defaultClauses: `CLÁUSULA 1ª - DO OBJETO: O presente contrato tem por objeto a prestação de serviços de assinatura do plano {{nome_plano}} pela CONTRATADA ao CONTRATANTE, por meio da unidade/filial {{nome_filial}}.
 CLÁUSULA 2ª - DO VALOR E PAGAMENTO: O CONTRATANTE pagará à CONTRATADA o valor contratado de {{valor_contratado}} com periodicidade {{periodicidade}}, sendo o primeiro vencimento em {{data_vencimento}}.
 CLÁUSULA 3ª - DA VIGÊNCIA E RENOVAÇÃO: O presente contrato tem início em {{data_inicio}} e término previsto em {{data_final}}, renovando-se automaticamente sob as mesmas condições, salvo manifestação em contrário com 15 dias de antecedência.
 CLÁUSULA 4ª - DA RESCISÃO E CANCELAMENTO: O cancelamento poderá ser solicitado a qualquer momento pelo CONTRATANTE, respeitadas eventuais faturas emitidas e proporcionais devidos.
 CLÁUSULA 5ª - DO TRATAMENTO DE DADOS (LGPD): As partes declaram ciência e conformidade com as diretrizes da Lei nº 13.709/2018 (LGPD), destinando os dados exclusivamente à execução contratual.`,
-  templateContent: `INSTRUMENTO PARTICULAR DE PRESTAÇÃO DE SERVIÇOS E ASSINATURA
+  templateContent: `INSTRUMENTO PARTICULAR DE PRESTAÇÃO DE SERVIÇOS E ASSINATURA EMPRESARIAL
 
 CONTRATADA: {{empresa_nome}}, pessoa jurídica de direito privado, inscrita no CNPJ sob o nº {{empresa_cnpj}}, com sede em {{empresa_endereco}}.
+UNIDADE / FILIAL RESPONSÁVEL: {{nome_filial}}.
 
-CONTRATANTE: {{nome_cliente}}, inscrito(a) no CPF sob o nº {{cpf_cliente}}, residente e domiciliado(a) em {{endereco_cliente}}.
+CONTRATANTE: {{nome_cliente}}, inscrito(a) no CPF/CNPJ sob o nº {{cpf_cliente}}, residente e domiciliado(a) em {{endereco_cliente}}.
 
 As partes acima qualificadas têm, entre si, justo e acordado o presente Contrato de Prestação de Serviços, regido pelas cláusulas seguintes:
 
@@ -149,6 +323,20 @@ export const INITIAL_PLANS: Plan[] = [
     terms: 'Fidelidade de 12 meses. Parcelamento em até 12x.',
     additionalFees: 0,
     allowedDiscounts: 20.0,
+    status: 'ativo',
+    createdAt: '2026-01-01',
+  },
+  {
+    id: 'plan-enterprise-pro',
+    name: 'ONNIX Enterprise Pro Multiempresa',
+    description: 'Solução corporativa multi-telas para filiais e empresas parceiras',
+    price: 599.0,
+    billingCycle: 'mensal',
+    durationMonths: 12,
+    renewalRules: 'Renovação automática com gerente de conta B2B',
+    terms: 'Contrato corporativo com SLA garantido de 99.9%.',
+    additionalFees: 0,
+    allowedDiscounts: 50.0,
     status: 'ativo',
     createdAt: '2026-01-01',
   },
@@ -231,11 +419,15 @@ export class DatabaseService {
     action: string,
     entityType: string,
     entityId: string,
-    details: string
+    details: string,
+    companyId?: string,
+    branchId?: string
   ): Promise<void> {
     const log: AuditLog = {
       id: `audit-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
       userEmail,
+      companyId: companyId || undefined,
+      branchId: branchId || undefined,
       action,
       entityType,
       entityId,
@@ -253,33 +445,340 @@ export class DatabaseService {
     }
   }
 
-  static async getAuditLogs(): Promise<AuditLog[]> {
+  static async getAuditLogs(companyId?: string): Promise<AuditLog[]> {
     try {
-      const snap = await getDocs(query(collection(db, 'audit_logs'), orderBy('timestamp', 'desc'), limit(100)));
+      const snap = await getDocs(query(collection(db, 'audit_logs'), orderBy('timestamp', 'desc'), limit(150)));
       if (!snap.empty) {
         const list = snap.docs.map(d => d.data() as AuditLog);
         setLocalCache('audit_logs', list);
+        if (companyId && companyId !== 'TODAS') {
+          return list.filter(l => !l.companyId || l.companyId === companyId);
+        }
         return list;
       }
     } catch (e) {
       console.warn('Fallback to cached audit logs:', e);
     }
-    return getLocalCache<AuditLog[]>('audit_logs', []);
+    const cached = getLocalCache<AuditLog[]>('audit_logs', []);
+    if (companyId && companyId !== 'TODAS') {
+      return cached.filter(l => !l.companyId || l.companyId === companyId);
+    }
+    return cached;
   }
 
-  // Customers
-  static async getCustomers(): Promise<Customer[]> {
+  // ==========================================
+  // PARTNER COMPANIES (EMPRESAS PARCEIRAS)
+  // ==========================================
+  static async getCompanies(): Promise<PartnerCompany[]> {
     try {
-      const snap = await getDocs(collection(db, 'customers'));
+      const snap = await getDocs(collection(db, 'companies'));
       if (!snap.empty) {
-        const list = snap.docs.map(d => d.data() as Customer);
-        setLocalCache('customers', list);
+        const list = snap.docs.map(d => d.data() as PartnerCompany);
+        setLocalCache('companies', list);
         return list;
       }
     } catch (e) {
-      console.warn('Reading local customers cache:', e);
+      console.warn('Reading local companies cache:', e);
     }
-    return getLocalCache<Customer[]>('customers', []);
+    const cached = getLocalCache<PartnerCompany[]>('companies', INITIAL_COMPANIES);
+    return cached.length ? cached : INITIAL_COMPANIES;
+  }
+
+  static async saveCompany(company: PartnerCompany, userEmail: string): Promise<void> {
+    const isNew = !company.createdAt;
+    const now = new Date().toISOString();
+    const toSave: PartnerCompany = {
+      ...company,
+      createdAt: company.createdAt || now,
+      updatedAt: now,
+    };
+
+    const current = await this.getCompanies();
+    const filtered = current.filter(c => c.id !== toSave.id);
+    const updatedList = [toSave, ...filtered];
+    setLocalCache('companies', updatedList);
+
+    try {
+      await setDoc(doc(db, 'companies', toSave.id), toSave);
+    } catch (e) {
+      console.warn('Saved company locally:', e);
+    }
+
+    await this.logAudit(
+      userEmail,
+      isNew ? 'EMPRESA_CRIADA' : 'EMPRESA_ATUALIZADA',
+      'companies',
+      toSave.id,
+      `Empresa Parceira ${toSave.tradeName} (${toSave.code}) - Status: ${toSave.status}`,
+      toSave.id
+    );
+  }
+
+  static async updateCompanyStatus(companyId: string, status: CompanyStatus, userEmail: string): Promise<void> {
+    const companies = await this.getCompanies();
+    const company = companies.find(c => c.id === companyId);
+    if (!company) return;
+
+    company.status = status;
+    company.updatedAt = new Date().toISOString();
+    await this.saveCompany(company, userEmail);
+
+    await this.logAudit(
+      userEmail,
+      'STATUS_EMPRESA_ALTERADO',
+      'companies',
+      companyId,
+      `Status da empresa ${company.tradeName} alterado para ${status}`,
+      companyId
+    );
+  }
+
+  static async createCompany(
+    companyData: Omit<PartnerCompany, 'id' | 'createdAt'>,
+    userEmail: string
+  ): Promise<PartnerCompany> {
+    const id = `company-${Date.now()}`;
+    const newCompany: PartnerCompany = {
+      ...companyData,
+      id,
+      createdAt: new Date().toISOString(),
+    };
+    await this.saveCompany(newCompany, userEmail);
+    return newCompany;
+  }
+
+  static async updateCompany(
+    companyId: string,
+    updates: Partial<PartnerCompany>,
+    userEmail: string
+  ): Promise<void> {
+    const companies = await this.getCompanies();
+    const existing = companies.find(c => c.id === companyId);
+    if (!existing) throw new Error('Empresa parceira não encontrada.');
+    const updated: PartnerCompany = {
+      ...existing,
+      ...updates,
+      updatedAt: new Date().toISOString(),
+    };
+    await this.saveCompany(updated, userEmail);
+  }
+
+  static async deleteCompany(companyId: string, userEmail: string): Promise<void> {
+    if (companyId === 'company-matriz-01') {
+      throw new Error('A empresa Matriz ONNIX PLAY é protegida e não pode ser excluída.');
+    }
+    const current = await this.getCompanies();
+    setLocalCache('companies', current.filter(c => c.id !== companyId));
+    try {
+      await deleteDoc(doc(db, 'companies', companyId));
+    } catch (e) {
+      console.warn('Delete company remote error:', e);
+    }
+    await this.logAudit(userEmail, 'EMPRESA_EXCLUIDA', 'companies', companyId, 'Empresa parceira removida');
+  }
+
+  // ==========================================
+  // BRANCHES (FILIAIS)
+  // ==========================================
+  static async getBranches(companyId?: string): Promise<Branch[]> {
+    try {
+      const snap = await getDocs(collection(db, 'branches'));
+      if (!snap.empty) {
+        const list = snap.docs.map(d => d.data() as Branch);
+        setLocalCache('branches', list);
+        if (companyId && companyId !== 'TODAS') {
+          return list.filter(b => b.companyId === companyId);
+        }
+        return list;
+      }
+    } catch (e) {
+      console.warn('Reading local branches:', e);
+    }
+    const cached = getLocalCache<Branch[]>('branches', INITIAL_BRANCHES);
+    const list = cached.length ? cached : INITIAL_BRANCHES;
+    if (companyId && companyId !== 'TODAS') {
+      return list.filter(b => b.companyId === companyId);
+    }
+    return list;
+  }
+
+  static async saveBranch(branch: Branch, userEmail: string): Promise<void> {
+    const isNew = !branch.createdAt;
+    const now = new Date().toISOString();
+    const toSave: Branch = {
+      ...branch,
+      createdAt: branch.createdAt || now,
+      updatedAt: now,
+    };
+
+    const current = await this.getBranches();
+    const filtered = current.filter(b => b.id !== toSave.id);
+    const updated = [toSave, ...filtered];
+    setLocalCache('branches', updated);
+
+    try {
+      await setDoc(doc(db, 'branches', toSave.id), toSave);
+    } catch (e) {
+      console.warn('Branch saved locally:', e);
+    }
+
+    await this.logAudit(
+      userEmail,
+      isNew ? 'FILIAL_CRIADA' : 'FILIAL_ATUALIZADA',
+      'branches',
+      toSave.id,
+      `Filial ${toSave.name} (${toSave.code}) vinculada à empresa ${toSave.companyId}`,
+      toSave.companyId,
+      toSave.id
+    );
+  }
+
+  static async createBranch(
+    branchData: Omit<Branch, 'id' | 'createdAt'>,
+    userEmail: string
+  ): Promise<Branch> {
+    const id = `branch-${Date.now()}`;
+    const newBranch: Branch = {
+      ...branchData,
+      id,
+      createdAt: new Date().toISOString(),
+    };
+    await this.saveBranch(newBranch, userEmail);
+    return newBranch;
+  }
+
+  static async updateBranch(
+    branchId: string,
+    updates: Partial<Branch>,
+    userEmail: string
+  ): Promise<void> {
+    const branches = await this.getBranches();
+    const existing = branches.find(b => b.id === branchId);
+    if (!existing) throw new Error('Filial não encontrada.');
+    const updated: Branch = {
+      ...existing,
+      ...updates,
+      updatedAt: new Date().toISOString(),
+    };
+    await this.saveBranch(updated, userEmail);
+  }
+
+  static async deleteBranch(branchId: string, userEmail: string): Promise<void> {
+    const current = await this.getBranches();
+    const branch = current.find(b => b.id === branchId);
+    setLocalCache('branches', current.filter(b => b.id !== branchId));
+    try {
+      await deleteDoc(doc(db, 'branches', branchId));
+    } catch (e) {
+      console.warn('Delete branch remote error:', e);
+    }
+    await this.logAudit(
+      userEmail,
+      'FILIAL_EXCLUIDA',
+      'branches',
+      branchId,
+      `Filial removida`,
+      branch?.companyId
+    );
+  }
+
+  // Transfer client between branches with audit log
+  static async transferCustomerBranch(
+    customerId: string,
+    targetBranchId: string,
+    targetCompanyId: string,
+    reason?: string,
+    userEmail: string = 'master@onnix.com'
+  ): Promise<void> {
+    const customers = await this.getCustomers();
+    const customer = customers.find(c => c.id === customerId);
+    if (!customer) throw new Error('Cliente não encontrado.');
+
+    const oldCompany = customer.companyId;
+    const oldBranch = customer.branchId;
+
+    customer.companyId = targetCompanyId;
+    customer.branchId = targetBranchId;
+    customer.updatedAt = new Date().toISOString();
+
+    await this.saveCustomer(customer, userEmail);
+
+    await this.logAudit(
+      userEmail,
+      'TRANSFERENCIA_CLIENTE_FILIAL',
+      'customers',
+      customer.id,
+      `Cliente ${customer.name} transferido da empresa/filial [${oldCompany}/${oldBranch}] para [${targetCompanyId}/${targetBranchId}]. Motivo: ${reason || 'Remanejamento autorizado'}`,
+      targetCompanyId,
+      targetBranchId
+    );
+  }
+
+  // Transfer contract between branches with audit log
+  static async transferContractBranch(
+    contractId: string,
+    targetBranchId: string,
+    targetCompanyId: string,
+    reason?: string,
+    userEmail: string = 'master@onnix.com'
+  ): Promise<void> {
+    const contracts = await this.getContracts();
+    const contract = contracts.find(c => c.id === contractId);
+    if (!contract) throw new Error('Contrato não encontrado.');
+
+    const oldCompany = contract.companyId;
+    const oldBranch = contract.branchId;
+
+    contract.companyId = targetCompanyId;
+    contract.branchId = targetBranchId;
+    contract.updatedAt = new Date().toISOString();
+
+    await this.saveContract(contract, userEmail);
+
+    await this.logAudit(
+      userEmail,
+      'TRANSFERENCIA_CONTRATO_FILIAL',
+      'contracts',
+      contract.id,
+      `Contrato ${contract.documentNumber} transferido da unidade [${oldCompany}/${oldBranch}] para [${targetCompanyId}/${targetBranchId}]. Motivo: ${reason || 'Ajuste de jurisdição comercial'}`,
+      targetCompanyId,
+      targetBranchId
+    );
+  }
+
+  // ==========================================
+  // CUSTOMERS (MULTIEMPRESA)
+  // ==========================================
+  static async getCustomers(companyId?: string, branchId?: string): Promise<Customer[]> {
+    let list: Customer[] = [];
+    try {
+      const snap = await getDocs(collection(db, 'customers'));
+      if (!snap.empty) {
+        list = snap.docs.map(d => d.data() as Customer);
+        setLocalCache('customers', list);
+      } else {
+        list = getLocalCache<Customer[]>('customers', []);
+      }
+    } catch (e) {
+      console.warn('Reading local customers cache:', e);
+      list = getLocalCache<Customer[]>('customers', []);
+    }
+
+    // Ensure backwards compatibility: every customer has companyId and branchId
+    list = list.map(c => ({
+      ...c,
+      companyId: c.companyId || 'company-matriz-01',
+      branchId: c.branchId || 'branch-matriz-01',
+    }));
+
+    if (companyId && companyId !== 'TODAS') {
+      list = list.filter(c => c.companyId === companyId);
+    }
+    if (branchId && branchId !== 'TODAS') {
+      list = list.filter(c => c.branchId === branchId);
+    }
+
+    return list;
   }
 
   static async saveCustomer(customer: Customer, userEmail: string): Promise<void> {
@@ -287,6 +786,8 @@ export class DatabaseService {
     const now = new Date().toISOString();
     const toSave: Customer = {
       ...customer,
+      companyId: customer.companyId || 'company-matriz-01',
+      branchId: customer.branchId || 'branch-matriz-01',
       createdAt: customer.createdAt || now,
       updatedAt: now,
     };
@@ -306,22 +807,27 @@ export class DatabaseService {
       isNew ? 'CLIENTE_CRIADO' : 'CLIENTE_ATUALIZADO',
       'customers',
       toSave.id,
-      `Cliente ${toSave.name} (${toSave.code})`
+      `Cliente ${toSave.name} (${toSave.code}) - Empresa: ${toSave.companyId}`,
+      toSave.companyId,
+      toSave.branchId
     );
   }
 
   static async deleteCustomer(customerId: string, userEmail: string): Promise<void> {
     const current = getLocalCache<Customer[]>('customers', []);
+    const target = current.find(c => c.id === customerId);
     setLocalCache('customers', current.filter(c => c.id !== customerId));
     try {
       await deleteDoc(doc(db, 'customers', customerId));
     } catch (e) {
       console.warn('Delete customer remote error:', e);
     }
-    await this.logAudit(userEmail, 'CLIENTE_EXCLUIDO', 'customers', customerId, 'Registro de cliente removido');
+    await this.logAudit(userEmail, 'CLIENTE_EXCLUIDO', 'customers', customerId, 'Registro de cliente removido', target?.companyId);
   }
 
-  // Plans
+  // ==========================================
+  // PLANS
+  // ==========================================
   static async getPlans(): Promise<Plan[]> {
     try {
       const snap = await getDocs(collection(db, 'plans'));
@@ -363,24 +869,40 @@ export class DatabaseService {
     );
   }
 
-  // Subscriptions
-  static async getSubscriptions(): Promise<Subscription[]> {
+  // ==========================================
+  // SUBSCRIPTIONS
+  // ==========================================
+  static async getSubscriptions(companyId?: string): Promise<Subscription[]> {
+    let list: Subscription[] = [];
     try {
       const snap = await getDocs(collection(db, 'subscriptions'));
       if (!snap.empty) {
-        const list = snap.docs.map(d => d.data() as Subscription);
+        list = snap.docs.map(d => d.data() as Subscription);
         setLocalCache('subscriptions', list);
-        return list;
+      } else {
+        list = getLocalCache<Subscription[]>('subscriptions', []);
       }
     } catch (e) {
       console.warn('Reading local subscriptions:', e);
+      list = getLocalCache<Subscription[]>('subscriptions', []);
     }
-    return getLocalCache<Subscription[]>('subscriptions', []);
+
+    list = list.map(s => ({
+      ...s,
+      companyId: s.companyId || 'company-matriz-01',
+    }));
+
+    if (companyId && companyId !== 'TODAS') {
+      list = list.filter(s => s.companyId === companyId);
+    }
+
+    return list;
   }
 
   static async saveSubscription(sub: Subscription, userEmail: string): Promise<void> {
     const toSave: Subscription = {
       ...sub,
+      companyId: sub.companyId || 'company-matriz-01',
       createdAt: sub.createdAt || new Date().toISOString(),
     };
     const current = getLocalCache<Subscription[]>('subscriptions', []);
@@ -398,23 +920,42 @@ export class DatabaseService {
       'ASSINATURA_ATUALIZADA',
       'subscriptions',
       toSave.id,
-      `Assinatura para cliente ${toSave.customerId} - ciclo ${toSave.billingCycle}`
+      `Assinatura cliente ${toSave.customerId} - ciclo ${toSave.billingCycle}`
     );
   }
 
-  // Contracts
-  static async getContracts(): Promise<Contract[]> {
+  // ==========================================
+  // CONTRACTS (MULTIEMPRESA)
+  // ==========================================
+  static async getContracts(companyId?: string, branchId?: string): Promise<Contract[]> {
+    let list: Contract[] = [];
     try {
       const snap = await getDocs(collection(db, 'contracts'));
       if (!snap.empty) {
-        const list = snap.docs.map(d => d.data() as Contract);
+        list = snap.docs.map(d => d.data() as Contract);
         setLocalCache('contracts', list);
-        return list;
+      } else {
+        list = getLocalCache<Contract[]>('contracts', []);
       }
     } catch (e) {
       console.warn('Reading local contracts:', e);
+      list = getLocalCache<Contract[]>('contracts', []);
     }
-    return getLocalCache<Contract[]>('contracts', []);
+
+    list = list.map(c => ({
+      ...c,
+      companyId: c.companyId || 'company-matriz-01',
+      branchId: c.branchId || 'branch-matriz-01',
+    }));
+
+    if (companyId && companyId !== 'TODAS') {
+      list = list.filter(c => c.companyId === companyId);
+    }
+    if (branchId && branchId !== 'TODAS') {
+      list = list.filter(c => c.branchId === branchId);
+    }
+
+    return list;
   }
 
   static async saveContract(contract: Contract, userEmail: string): Promise<void> {
@@ -422,6 +963,8 @@ export class DatabaseService {
     const now = new Date().toISOString();
     const toSave: Contract = {
       ...contract,
+      companyId: contract.companyId || 'company-matriz-01',
+      branchId: contract.branchId || 'branch-matriz-01',
       createdAt: contract.createdAt || now,
       updatedAt: now,
     };
@@ -440,7 +983,9 @@ export class DatabaseService {
       isNew ? 'CONTRATO_EMITIDO' : 'CONTRATO_ATUALIZADO',
       'contracts',
       toSave.id,
-      `Contrato ${toSave.documentNumber} (${toSave.status})`
+      `Contrato ${toSave.documentNumber} (${toSave.status}) - Empresa: ${toSave.companyId}`,
+      toSave.companyId,
+      toSave.branchId
     );
   }
 
@@ -472,19 +1017,38 @@ export class DatabaseService {
     await this.logAudit(userEmail, 'TEMPLATE_CONTRATO_SALVO', 'contract_templates', template.id, template.name);
   }
 
-  // Invoices
-  static async getInvoices(): Promise<Invoice[]> {
+  // ==========================================
+  // INVOICES & PAYMENTS (MULTIEMPRESA)
+  // ==========================================
+  static async getInvoices(companyId?: string, branchId?: string): Promise<Invoice[]> {
+    let list: Invoice[] = [];
     try {
       const snap = await getDocs(collection(db, 'invoices'));
       if (!snap.empty) {
-        const list = snap.docs.map(d => d.data() as Invoice);
+        list = snap.docs.map(d => d.data() as Invoice);
         setLocalCache('invoices', list);
-        return list;
+      } else {
+        list = getLocalCache<Invoice[]>('invoices', []);
       }
     } catch (e) {
       console.warn('Reading local invoices:', e);
+      list = getLocalCache<Invoice[]>('invoices', []);
     }
-    return getLocalCache<Invoice[]>('invoices', []);
+
+    list = list.map(i => ({
+      ...i,
+      companyId: i.companyId || 'company-matriz-01',
+      branchId: i.branchId || 'branch-matriz-01',
+    }));
+
+    if (companyId && companyId !== 'TODAS') {
+      list = list.filter(i => i.companyId === companyId);
+    }
+    if (branchId && branchId !== 'TODAS') {
+      list = list.filter(i => i.branchId === branchId);
+    }
+
+    return list;
   }
 
   static async saveInvoice(invoice: Invoice, userEmail: string): Promise<void> {
@@ -492,6 +1056,8 @@ export class DatabaseService {
     const now = new Date().toISOString();
     const toSave: Invoice = {
       ...invoice,
+      companyId: invoice.companyId || 'company-matriz-01',
+      branchId: invoice.branchId || 'branch-matriz-01',
       createdAt: invoice.createdAt || now,
       updatedAt: now,
     };
@@ -510,27 +1076,39 @@ export class DatabaseService {
       isNew ? 'COBRANCA_CRIADA' : 'COBRANCA_ATUALIZADA',
       'invoices',
       toSave.id,
-      `Cobrança ${toSave.invoiceNumber} - R$ ${toSave.amount} (${toSave.status})`
+      `Cobrança ${toSave.invoiceNumber} - R$ ${toSave.amount} (${toSave.status})`,
+      toSave.companyId
     );
   }
 
-  // Payments
-  static async getPayments(): Promise<Payment[]> {
+  static async getPayments(companyId?: string): Promise<Payment[]> {
+    let list: Payment[] = [];
     try {
       const snap = await getDocs(collection(db, 'payments'));
       if (!snap.empty) {
-        const list = snap.docs.map(d => d.data() as Payment);
+        list = snap.docs.map(d => d.data() as Payment);
         setLocalCache('payments', list);
-        return list;
+      } else {
+        list = getLocalCache<Payment[]>('payments', []);
       }
     } catch (e) {
       console.warn('Reading local payments:', e);
+      list = getLocalCache<Payment[]>('payments', []);
     }
-    return getLocalCache<Payment[]>('payments', []);
+
+    list = list.map(p => ({
+      ...p,
+      companyId: p.companyId || 'company-matriz-01',
+    }));
+
+    if (companyId && companyId !== 'TODAS') {
+      list = list.filter(p => p.companyId === companyId);
+    }
+
+    return list;
   }
 
   static async recordPayment(payment: Payment, userEmail: string): Promise<void> {
-    // Check for double payment on the same invoice
     const existing = await this.getPayments();
     const duplicate = existing.find(p => p.invoiceId === payment.invoiceId);
     if (duplicate) {
@@ -539,6 +1117,7 @@ export class DatabaseService {
 
     const toSave: Payment = {
       ...payment,
+      companyId: payment.companyId || 'company-matriz-01',
       createdAt: payment.createdAt || new Date().toISOString(),
       registeredBy: userEmail,
     };
@@ -552,7 +1131,6 @@ export class DatabaseService {
       console.warn('Payment saved locally:', e);
     }
 
-    // Update the invoice status to 'paga'
     const invoices = await this.getInvoices();
     const targetInvoice = invoices.find(i => i.id === payment.invoiceId);
     if (targetInvoice) {
@@ -563,7 +1141,6 @@ export class DatabaseService {
       await this.saveInvoice(targetInvoice, userEmail);
     }
 
-    // Check if customer had partner referral, compute eligible commission
     const customers = await this.getCustomers();
     const customer = customers.find(c => c.id === payment.customerId);
     if (customer && customer.partnerId) {
@@ -575,11 +1152,14 @@ export class DatabaseService {
       'PAGAMENTO_CONFIRMADO',
       'payments',
       toSave.id,
-      `Pagamento de R$ ${toSave.amount} para fatura ${payment.invoiceId}. Ref: ${payment.transactionReference}`
+      `Pagamento de R$ ${toSave.amount} para fatura ${payment.invoiceId}. Ref: ${payment.transactionReference}`,
+      toSave.companyId
     );
   }
 
-  // Partners & Commissions
+  // ==========================================
+  // PARTNERS & COMMISSIONS
+  // ==========================================
   static async getPartners(): Promise<Partner[]> {
     try {
       const snap = await getDocs(collection(db, 'partners'));
@@ -642,7 +1222,6 @@ export class DatabaseService {
     const partner = partners.find(p => p.id === partnerId);
     if (!partner || partner.status !== 'ativo') return null;
 
-    // Check duplicate commission for the same payment
     const existing = await this.getCommissions();
     const hasExisting = existing.some(c => c.invoiceId === payment.invoiceId && c.partnerId === partnerId);
     if (hasExisting) return null;
@@ -723,19 +1302,32 @@ export class DatabaseService {
     );
   }
 
-  // Employees & RBAC
-  static async getEmployees(): Promise<EmployeeProfile[]> {
+  // ==========================================
+  // EMPLOYEES & USERS (RBAC MULTIEMPRESA)
+  // ==========================================
+  static async getEmployees(companyId?: string, branchId?: string): Promise<EmployeeProfile[]> {
+    let list: EmployeeProfile[] = [];
     try {
       const snap = await getDocs(collection(db, 'employee_profiles'));
       if (!snap.empty) {
-        const list = snap.docs.map(d => d.data() as EmployeeProfile);
+        list = snap.docs.map(d => d.data() as EmployeeProfile);
         setLocalCache('employee_profiles', list);
-        return list;
+      } else {
+        list = getLocalCache<EmployeeProfile[]>('employee_profiles', []);
       }
     } catch (e) {
       console.warn('Reading local employees:', e);
+      list = getLocalCache<EmployeeProfile[]>('employee_profiles', []);
     }
-    return getLocalCache<EmployeeProfile[]>('employee_profiles', []);
+
+    if (companyId && companyId !== 'TODAS') {
+      list = list.filter(e => !e.companyId || e.companyId === companyId);
+    }
+    if (branchId && branchId !== 'TODAS') {
+      list = list.filter(e => !e.branchId || e.branchId === branchId);
+    }
+
+    return list;
   }
 
   static async saveEmployee(emp: EmployeeProfile, userEmail: string): Promise<void> {
@@ -756,25 +1348,30 @@ export class DatabaseService {
 
     await this.logAudit(
       userEmail,
-      isNew ? 'FUNCIONARIO_CRIADO' : 'FUNCIONARIO_ATUALIZADO',
+      isNew ? 'USUARIO_CRIADO' : 'USUARIO_ATUALIZADO',
       'employee_profiles',
       toSave.id,
-      `Funcionário ${toSave.name} (${toSave.email}) com ${toSave.permissions.length} permissões`
+      `Perfil ${toSave.name} (${toSave.email}) - Função: ${toSave.role} - Empresa: ${toSave.companyId || 'Global'}`,
+      toSave.companyId,
+      toSave.branchId
     );
   }
 
   static async deleteEmployee(employeeId: string, userEmail: string): Promise<void> {
     const current = getLocalCache<EmployeeProfile[]>('employee_profiles', []);
+    const emp = current.find(e => e.id === employeeId);
     setLocalCache('employee_profiles', current.filter(e => e.id !== employeeId));
     try {
       await deleteDoc(doc(db, 'employee_profiles', employeeId));
     } catch (e) {
       console.warn('Delete employee error:', e);
     }
-    await this.logAudit(userEmail, 'FUNCIONARIO_REMOVIDO', 'employee_profiles', employeeId, 'Funcionário desativado/removido');
+    await this.logAudit(userEmail, 'USUARIO_REMOVIDO', 'employee_profiles', employeeId, 'Usuário desativado/removido', emp?.companyId);
   }
 
-  // Message Logs (WhatsApp & Communications)
+  // ==========================================
+  // MESSAGE LOGS (WHATSAPP)
+  // ==========================================
   static async getMessageLogs(): Promise<MessageLog[]> {
     try {
       const snap = await getDocs(query(collection(db, 'message_logs'), orderBy('sentAt', 'desc'), limit(150)));
@@ -800,7 +1397,9 @@ export class DatabaseService {
     await this.logAudit(userEmail, 'MENSAGEM_DISPARADA', 'message_logs', log.id, `Mensagem ${log.messageType} para ${log.customerName}`);
   }
 
-  // Recurrence Engine Runner (Background routine simulation)
+  // ==========================================
+  // RECURRENCE ENGINE RUNNER
+  // ==========================================
   static async runRecurrenceEngine(userEmail = 'sistema'): Promise<{
     invoicesGenerated: number;
     remindersFound: number;
@@ -816,7 +1415,6 @@ export class DatabaseService {
     let remindersFound = 0;
     let invoicesOverdueUpdated = 0;
 
-    // 1. Mark overdue invoices that have passed due date and are still pending
     for (const inv of invoices) {
       if (inv.status === 'pendente' || inv.status === 'agendada' || inv.status === 'enviada') {
         const diff = getDaysDiff(inv.dueDate, today);
@@ -829,13 +1427,11 @@ export class DatabaseService {
       }
     }
 
-    // 2. Check active subscriptions and generate next cycle invoice if near due date (< 7 days) and not already generated
     const activeSubs = subscriptions.filter(s => s.status === 'ativa');
     for (const sub of activeSubs) {
       if (!sub.nextDueDate) continue;
 
       const diff = getDaysDiff(sub.nextDueDate, today);
-      // If due date is within next 30 days or overdue, ensure an invoice exists for this period
       if (diff <= 30) {
         const refPeriod = getReferencePeriod(sub.nextDueDate);
         const existingInvoice = invoices.find(
@@ -851,6 +1447,8 @@ export class DatabaseService {
             id: `inv-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
             invoiceNumber: invNum,
             customerId: sub.customerId,
+            companyId: sub.companyId || customer?.companyId || 'company-matriz-01',
+            branchId: sub.branchId || customer?.branchId || 'branch-matriz-01',
             subscriptionId: sub.id,
             planId: sub.planId,
             amount: sub.contractValue,
@@ -867,14 +1465,12 @@ export class DatabaseService {
           await this.saveInvoice(newInvoice, userEmail);
           invoicesGenerated++;
 
-          // Advance subscription's next due date according to billing cycle
           sub.nextDueDate = calculateNextDueDate(sub.nextDueDate, sub.billingCycle);
           await this.saveSubscription(sub, userEmail);
         }
       }
     }
 
-    // 3. Count upcoming D-2 reminders
     const updatedInvoices = await this.getInvoices();
     for (const inv of updatedInvoices) {
       if (inv.status === 'pendente' || inv.status === 'enviada') {
@@ -888,14 +1484,28 @@ export class DatabaseService {
     return { invoicesGenerated, remindersFound, invoicesOverdueUpdated };
   }
 
-  // Seed sample initial data if database is empty
+  // Seed baseline data preserving all existing data
   static async seedInitialDataIfEmpty(userEmail: string): Promise<void> {
+    // 1. Seed companies and branches
+    const companies = await this.getCompanies();
+    if (companies.length === 0) {
+      for (const comp of INITIAL_COMPANIES) {
+        await this.saveCompany(comp, userEmail);
+      }
+    }
+    const branches = await this.getBranches();
+    if (branches.length === 0) {
+      for (const br of INITIAL_BRANCHES) {
+        await this.saveBranch(br, userEmail);
+      }
+    }
+
     const customers = await this.getCustomers();
-    if (customers.length > 0) return; // Already has data
+    if (customers.length > 0) return; // Already has customer data
 
     const today = getTodaySaoPaulo();
 
-    // 1. Initial Partners
+    // Partners
     const samplePartner: Partner = {
       id: 'partner-1',
       code: 'PARC-001',
@@ -915,7 +1525,7 @@ export class DatabaseService {
     };
     await this.savePartner(samplePartner, userEmail);
 
-    // 2. Initial Sample Customers
+    // Initial Customers linked to Matriz and Branches
     const sampleCustomer1: Customer = {
       id: 'cust-1',
       code: 'ONX-001',
@@ -933,8 +1543,10 @@ export class DatabaseService {
       reference: 'Próximo à Av. Brigadeiro Faria Lima',
       registrationDate: '2026-02-01',
       source: 'Indicação',
+      companyId: 'company-matriz-01',
+      branchId: 'branch-matriz-01',
       partnerId: samplePartner.id,
-      notes: 'Cliente prioritário - solicitou suporte para 4 dispositivos.',
+      notes: 'Cliente corporativo com 4 terminais habilitados.',
       status: 'ativo',
       dataConsent: true,
       createdAt: '2026-02-01',
@@ -957,6 +1569,8 @@ export class DatabaseService {
       reference: 'Esquina com Rua Bela Cintra',
       registrationDate: '2026-02-15',
       source: 'Instagram',
+      companyId: 'company-matriz-01',
+      branchId: 'branch-campinas-02',
       notes: 'Plano anual - faturamento por PIX.',
       status: 'ativo',
       dataConsent: true,
@@ -978,7 +1592,9 @@ export class DatabaseService {
       state: 'SP',
       registrationDate: '2026-03-01',
       source: 'Google',
-      notes: 'Pagamento pendente de regularização.',
+      companyId: 'company-parceira-02',
+      branchId: 'branch-techplay-rj',
+      notes: 'Cliente atendido pela filial Rio de Janeiro da TechPlay.',
       status: 'pendente',
       dataConsent: true,
       createdAt: '2026-03-01',
@@ -988,10 +1604,12 @@ export class DatabaseService {
     await this.saveCustomer(sampleCustomer2, userEmail);
     await this.saveCustomer(sampleCustomer3, userEmail);
 
-    // 3. Subscriptions
+    // Subscriptions
     const sub1: Subscription = {
       id: 'sub-1',
       customerId: sampleCustomer1.id,
+      companyId: 'company-matriz-01',
+      branchId: 'branch-matriz-01',
       planId: 'plan-basic',
       startDate: '2026-02-01',
       firstDueDate: '2026-02-10',
@@ -1007,6 +1625,8 @@ export class DatabaseService {
     const sub2: Subscription = {
       id: 'sub-2',
       customerId: sampleCustomer2.id,
+      companyId: 'company-matriz-01',
+      branchId: 'branch-campinas-02',
       planId: 'plan-black',
       startDate: '2026-02-15',
       firstDueDate: '2026-02-15',
@@ -1022,8 +1642,7 @@ export class DatabaseService {
     await this.saveSubscription(sub1, userEmail);
     await this.saveSubscription(sub2, userEmail);
 
-    // 4. Sample Invoices (Confirmed and Upcoming)
-    // Target a date exactly 2 days from now for testing the D-2 reminder engine!
+    // Sample Invoices
     const [y, m, d] = today.split('-').map(Number);
     const d2Date = new Date(Date.UTC(y, m - 1, d + 2)).toISOString().slice(0, 10);
 
@@ -1031,13 +1650,15 @@ export class DatabaseService {
       id: 'inv-1',
       invoiceNumber: 'FAT-2026-0001',
       customerId: sampleCustomer1.id,
+      companyId: 'company-matriz-01',
+      branchId: 'branch-matriz-01',
       subscriptionId: sub1.id,
       planId: 'plan-basic',
       amount: 39.9,
       issueDate: '2026-02-01',
       dueDate: '2026-02-10',
       referencePeriod: 'Fevereiro/2026',
-      description: 'Mensalidade ONNIX Silver - Fevereiro/2026',
+      description: 'Mensalidade ONNIX Silver - Unidade Jardins',
       paymentMethod: 'PIX',
       status: 'paga',
       paidDate: '2026-02-09',
@@ -1050,11 +1671,13 @@ export class DatabaseService {
       id: 'inv-2',
       invoiceNumber: 'FAT-2026-0002',
       customerId: sampleCustomer1.id,
+      companyId: 'company-matriz-01',
+      branchId: 'branch-matriz-01',
       subscriptionId: sub1.id,
       planId: 'plan-basic',
       amount: 39.9,
       issueDate: today,
-      dueDate: d2Date, // exactly D-2!
+      dueDate: d2Date,
       referencePeriod: getReferencePeriod(d2Date),
       description: 'Mensalidade ONNIX Silver - Próximo Vencimento (D-2)',
       paymentMethod: 'PIX',
@@ -1067,6 +1690,8 @@ export class DatabaseService {
       id: 'inv-3',
       invoiceNumber: 'FAT-2026-0003',
       customerId: sampleCustomer3.id,
+      companyId: 'company-parceira-02',
+      branchId: 'branch-techplay-rj',
       planId: 'plan-basic',
       amount: 39.9,
       issueDate: '2026-03-01',
@@ -1083,11 +1708,13 @@ export class DatabaseService {
     await this.saveInvoice(inv2, userEmail);
     await this.saveInvoice(inv3, userEmail);
 
-    // 5. Payment for inv-1 and commission
+    // Confirmed payment
     const payment1: Payment = {
       id: 'pay-1',
       invoiceId: inv1.id,
       customerId: sampleCustomer1.id,
+      companyId: 'company-matriz-01',
+      branchId: 'branch-matriz-01',
       amount: 39.9,
       paymentDate: '2026-02-09',
       paymentMethod: 'PIX',
@@ -1098,11 +1725,13 @@ export class DatabaseService {
     };
     await this.recordPayment(payment1, userEmail);
 
-    // 6. Sample Initial Contract
+    // Initial Contract
     const sampleContract: Contract = {
       id: 'ctr-1',
       documentNumber: 'ONX-CTR-2026-001',
       customerId: sampleCustomer1.id,
+      companyId: 'company-matriz-01',
+      branchId: 'branch-matriz-01',
       subscriptionId: sub1.id,
       templateId: DEFAULT_CONTRACT_TEMPLATE.id,
       title: 'Contrato de Adesão - Plano ONNIX Silver',
@@ -1110,6 +1739,7 @@ export class DatabaseService {
         .replace(/{{empresa_nome}}/g, DEFAULT_COMPANY_SETTINGS.companyName)
         .replace(/{{empresa_cnpj}}/g, DEFAULT_COMPANY_SETTINGS.cnpj)
         .replace(/{{empresa_endereco}}/g, DEFAULT_COMPANY_SETTINGS.address)
+        .replace(/{{nome_filial}}/g, 'Unidade Central Jardins (SP)')
         .replace(/{{nome_cliente}}/g, sampleCustomer1.name)
         .replace(/{{cpf_cliente}}/g, sampleCustomer1.cpf)
         .replace(/{{endereco_cliente}}/g, `${sampleCustomer1.street}, ${sampleCustomer1.number} - ${sampleCustomer1.neighborhood}, ${sampleCustomer1.city}/${sampleCustomer1.state}`)
@@ -1127,8 +1757,11 @@ export class DatabaseService {
         nome_plano: 'ONNIX Silver',
         valor_contratado: 'R$ 39,90',
       },
-      status: 'emitido',
+      status: 'ativo',
       issuedAt: '2026-02-01',
+      startDate: '2026-02-01',
+      endDate: '2027-02-01',
+      contractValue: 39.9,
       version: 1,
       createdAt: '2026-02-01',
     };

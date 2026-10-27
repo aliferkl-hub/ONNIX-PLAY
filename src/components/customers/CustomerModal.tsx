@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Modal } from '../common/Modal.tsx';
-import { Customer, CustomerStatus, Partner, EmployeeProfile } from '../../types/index.ts';
+import { Customer, CustomerStatus, Partner, EmployeeProfile, PartnerCompany, Branch } from '../../types/index.ts';
 import { isValidCpf, cleanCpf, formatCpf } from '../../lib/cpf.ts';
-import { AlertCircle, CheckCircle2, ShieldAlert } from 'lucide-react';
+import { AlertCircle, CheckCircle2, ShieldAlert, Building2, GitBranch } from 'lucide-react';
 
 interface CustomerModalProps {
   isOpen: boolean;
@@ -12,6 +12,8 @@ interface CustomerModalProps {
   existingCustomers: Customer[];
   partners: Partner[];
   employees: EmployeeProfile[];
+  companies?: PartnerCompany[];
+  branches?: Branch[];
 }
 
 export const CustomerModal: React.FC<CustomerModalProps> = ({
@@ -22,6 +24,8 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
   existingCustomers,
   partners,
   employees,
+  companies = [],
+  branches = [],
 }) => {
   const [formData, setFormData] = useState<Partial<Customer>>({
     name: '',
@@ -52,6 +56,8 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
       setFormData(customerToEdit);
     } else {
       const nextCode = `ONX-${String(existingCustomers.length + 1).padStart(3, '0')}`;
+      const defaultCompanyId = companies[0]?.id || 'company-matriz-01';
+      const defaultBranches = branches.filter(b => b.companyId === defaultCompanyId);
       setFormData({
         code: nextCode,
         name: '',
@@ -68,6 +74,8 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
         reference: '',
         registrationDate: new Date().toISOString().slice(0, 10),
         source: 'Indicação',
+        companyId: defaultCompanyId,
+        branchId: defaultBranches[0]?.id || 'branch-matriz-01',
         notes: '',
         status: 'ativo',
         dataConsent: true,
@@ -75,7 +83,7 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
     }
     setCpfError(null);
     setDuplicateWarning(null);
-  }, [customerToEdit, isOpen, existingCustomers.length]);
+  }, [customerToEdit, isOpen, existingCustomers.length, companies, branches]);
 
   // Check for duplicate CPF or phone
   const handleCpfChange = (val: string) => {
@@ -161,6 +169,8 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
         reference: formData.reference || '',
         registrationDate: formData.registrationDate || new Date().toISOString().slice(0, 10),
         source: formData.source || 'Indicação',
+        companyId: formData.companyId || 'company-matriz-01',
+        branchId: formData.branchId || undefined,
         partnerId: formData.partnerId || '',
         employeeResponsibleId: formData.employeeResponsibleId || '',
         notes: formData.notes || '',
@@ -398,9 +408,60 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
 
         {/* SECTION 3: COMERCIAL & ATRIBUIÇÃO */}
         <div>
-          <h4 className="text-xs font-bold text-cyan-400 uppercase tracking-wider mb-3">
-            3. Relação Comercial & Responsáveis
+          <h4 className="text-xs font-bold text-cyan-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+            <Building2 className="w-4 h-4" /> 3. Vinculação Empresarial & Comercial
           </h4>
+
+          {/* Empresa & Filial Selection */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4 p-3 rounded-xl bg-slate-950/60 border border-slate-800">
+            <div>
+              <label className="block text-xs font-semibold text-slate-300 mb-1 flex items-center gap-1.5">
+                <Building2 className="w-3.5 h-3.5 text-cyan-400" />
+                Empresa Responsável *
+              </label>
+              <select
+                value={formData.companyId || (companies[0]?.id || '')}
+                onChange={e => {
+                  const compId = e.target.value;
+                  const validBranches = branches.filter(b => b.companyId === compId);
+                  setFormData({
+                    ...formData,
+                    companyId: compId,
+                    branchId: validBranches[0]?.id || '',
+                  });
+                }}
+                className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-cyan-500"
+              >
+                {companies.map(c => (
+                  <option key={c.id} value={c.id}>
+                    {c.tradeName} ({c.code})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-300 mb-1 flex items-center gap-1.5">
+                <GitBranch className="w-3.5 h-3.5 text-purple-400" />
+                Filial / Unidade de Atendimento
+              </label>
+              <select
+                value={formData.branchId || ''}
+                onChange={e => setFormData({ ...formData, branchId: e.target.value })}
+                className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-cyan-500"
+              >
+                <option value="">Matriz Principal / Sem Filial Específica</option>
+                {branches
+                  .filter(b => !formData.companyId || b.companyId === formData.companyId)
+                  .map(b => (
+                    <option key={b.id} value={b.id}>
+                      {b.name} ({b.city}/{b.state})
+                    </option>
+                  ))}
+              </select>
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1">

@@ -8,8 +8,10 @@
         "uid": { "type": "string" },
         "email": { "type": "string", "format": "email" },
         "displayName": { "type": "string" },
-        "role": { "type": "string", "enum": ["MASTER_OWNER", "EMPLOYEE"] },
-        "status": { "type": "string", "enum": ["ativo", "inativo"] },
+        "role": { "type": "string", "enum": ["MASTER_OWNER", "EMPRESA_ADMIN", "GERENTE_FILIAL", "COMERCIAL", "FINANCEIRO", "CONSULTA", "EMPLOYEE"] },
+        "status": { "type": "string", "enum": ["ativo", "inativo", "suspenso"] },
+        "companyId": { "type": "string" },
+        "branchId": { "type": "string" },
         "createdAt": { "type": "string" },
         "lastLogin": { "type": "string" }
       },
@@ -17,7 +19,7 @@
     },
     "EmployeeProfile": {
       "title": "EmployeeProfile",
-      "description": "Employee profile and granular permissions",
+      "description": "Employee and enterprise staff profile and granular permissions",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
@@ -25,16 +27,82 @@
         "email": { "type": "string", "format": "email" },
         "phone": { "type": "string" },
         "role": { "type": "string" },
-        "status": { "type": "string", "enum": ["ativo", "inativo"] },
+        "userRoleType": { "type": "string" },
+        "companyId": { "type": "string" },
+        "branchId": { "type": "string" },
+        "status": { "type": "string", "enum": ["ativo", "inativo", "suspenso"] },
         "permissions": { "type": "array" },
         "createdAt": { "type": "string" },
         "createdBy": { "type": "string" }
       },
       "required": ["id", "name", "email", "role", "status", "permissions"]
     },
+    "PartnerCompany": {
+      "title": "PartnerCompany",
+      "description": "Partner companies and enterprises in the multi-company network",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "code": { "type": "string" },
+        "corporateName": { "type": "string" },
+        "tradeName": { "type": "string" },
+        "cnpj": { "type": "string" },
+        "contactName": { "type": "string" },
+        "contactRole": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "phone": { "type": "string" },
+        "cep": { "type": "string" },
+        "street": { "type": "string" },
+        "number": { "type": "string" },
+        "complement": { "type": "string" },
+        "neighborhood": { "type": "string" },
+        "city": { "type": "string" },
+        "state": { "type": "string" },
+        "logoUrl": { "type": "string" },
+        "status": { "type": "string", "enum": ["ativa", "pendente", "suspensa", "inativa"] },
+        "planContracted": { "type": "string" },
+        "branchesLimit": { "type": "number" },
+        "clientsLimit": { "type": "number" },
+        "modulesAllowed": { "type": "array" },
+        "adminEmail": { "type": "string" },
+        "adminName": { "type": "string" },
+        "notes": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "code", "corporateName", "tradeName", "status", "adminEmail"]
+    },
+    "Branch": {
+      "title": "Branch",
+      "description": "Branches and regional units belonging to a partner company",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "code": { "type": "string" },
+        "companyId": { "type": "string" },
+        "name": { "type": "string" },
+        "cnpj": { "type": "string" },
+        "managerName": { "type": "string" },
+        "managerEmail": { "type": "string" },
+        "phone": { "type": "string" },
+        "email": { "type": "string" },
+        "cep": { "type": "string" },
+        "street": { "type": "string" },
+        "number": { "type": "string" },
+        "complement": { "type": "string" },
+        "neighborhood": { "type": "string" },
+        "city": { "type": "string" },
+        "state": { "type": "string" },
+        "status": { "type": "string", "enum": ["ativa", "suspensa", "inativa"] },
+        "notes": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "code", "companyId", "name", "status"]
+    },
     "Customer": {
       "title": "Customer",
-      "description": "Customer and subscriber information",
+      "description": "Customer and subscriber information scoped to company and branch",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
@@ -53,6 +121,8 @@
         "reference": { "type": "string" },
         "registrationDate": { "type": "string" },
         "source": { "type": "string" },
+        "companyId": { "type": "string" },
+        "branchId": { "type": "string" },
         "employeeResponsibleId": { "type": "string" },
         "partnerId": { "type": "string" },
         "notes": { "type": "string" },
@@ -61,7 +131,7 @@
         "createdAt": { "type": "string" },
         "updatedAt": { "type": "string" }
       },
-      "required": ["id", "code", "name", "cpf", "whatsapp", "status"]
+      "required": ["id", "code", "name", "cpf", "whatsapp", "status", "companyId"]
     },
     "Plan": {
       "title": "Plan",
@@ -90,6 +160,8 @@
       "properties": {
         "id": { "type": "string" },
         "customerId": { "type": "string" },
+        "companyId": { "type": "string" },
+        "branchId": { "type": "string" },
         "planId": { "type": "string" },
         "startDate": { "type": "string" },
         "firstDueDate": { "type": "string" },
@@ -108,24 +180,35 @@
     },
     "Contract": {
       "title": "Contract",
-      "description": "Legal contracts issued to customers",
+      "description": "Legal contracts issued to customers with multi-company scope and status control",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
+        "documentNumber": { "type": "string" },
         "customerId": { "type": "string" },
+        "companyId": { "type": "string" },
+        "branchId": { "type": "string" },
         "subscriptionId": { "type": "string" },
         "templateId": { "type": "string" },
-        "documentNumber": { "type": "string" },
         "title": { "type": "string" },
         "content": { "type": "string" },
-        "status": { "type": "string", "enum": ["rascunho", "emitido", "assinado", "cancelado"] },
+        "terms": { "type": "string" },
+        "dynamicValues": { "type": "object" },
+        "status": { "type": "string", "enum": ["rascunho", "aguardando_assinatura", "emitido", "assinado", "ativo", "suspenso", "encerrado", "vencido", "cancelado"] },
         "issuedAt": { "type": "string" },
+        "startDate": { "type": "string" },
+        "dueDate": { "type": "string" },
+        "endDate": { "type": "string" },
+        "contractValue": { "type": "number" },
         "signedAt": { "type": "string" },
         "signedBy": { "type": "string" },
         "version": { "type": "number" },
-        "createdAt": { "type": "string" }
+        "attachments": { "type": "array" },
+        "notes": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
       },
-      "required": ["id", "customerId", "documentNumber", "status"]
+      "required": ["id", "customerId", "companyId", "documentNumber", "status"]
     },
     "ContractTemplate": {
       "title": "ContractTemplate",
@@ -136,6 +219,7 @@
         "name": { "type": "string" },
         "description": { "type": "string" },
         "templateContent": { "type": "string" },
+        "defaultClauses": { "type": "string" },
         "isDefault": { "type": "boolean" },
         "createdAt": { "type": "string" }
       },
@@ -149,6 +233,8 @@
         "id": { "type": "string" },
         "invoiceNumber": { "type": "string" },
         "customerId": { "type": "string" },
+        "companyId": { "type": "string" },
+        "branchId": { "type": "string" },
         "subscriptionId": { "type": "string" },
         "planId": { "type": "string" },
         "amount": { "type": "number" },
@@ -175,6 +261,8 @@
         "id": { "type": "string" },
         "invoiceId": { "type": "string" },
         "customerId": { "type": "string" },
+        "companyId": { "type": "string" },
+        "branchId": { "type": "string" },
         "amount": { "type": "number" },
         "paymentDate": { "type": "string" },
         "paymentMethod": { "type": "string" },
@@ -226,12 +314,14 @@
     },
     "AuditLog": {
       "title": "AuditLog",
-      "description": "Immutable security and activity audit records",
+      "description": "Immutable security and activity audit records with multi-company trace",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
         "userId": { "type": "string" },
         "userEmail": { "type": "string" },
+        "companyId": { "type": "string" },
+        "branchId": { "type": "string" },
         "action": { "type": "string" },
         "entityType": { "type": "string" },
         "entityId": { "type": "string" },
@@ -254,17 +344,25 @@
     }
   },
   "firestore": {
+    "/companies/{companyId}": {
+      "schema": "PartnerCompany",
+      "description": "Partner companies and enterprises in the multi-company network"
+    },
+    "/branches/{branchId}": {
+      "schema": "Branch",
+      "description": "Branches and regional units belonging to a partner company"
+    },
     "/users/{userId}": {
       "schema": "User",
       "description": "User accounts"
     },
     "/employee_profiles/{profileId}": {
       "schema": "EmployeeProfile",
-      "description": "Employee management and permissions"
+      "description": "Employee and enterprise staff management and permissions"
     },
     "/customers/{customerId}": {
       "schema": "Customer",
-      "description": "Client registrations"
+      "description": "Client registrations scoped to company and branch"
     },
     "/plans/{planId}": {
       "schema": "Plan",
@@ -276,7 +374,7 @@
     },
     "/contracts/{contractId}": {
       "schema": "Contract",
-      "description": "Generated customer contracts"
+      "description": "Generated customer contracts scoped to company and branch"
     },
     "/contract_templates/{templateId}": {
       "schema": "ContractTemplate",

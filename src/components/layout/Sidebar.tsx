@@ -1,6 +1,8 @@
 import React from 'react';
 import {
   LayoutDashboard,
+  Building2,
+  GitBranch,
   Users,
   CalendarDays,
   FileSpreadsheet,
@@ -25,6 +27,8 @@ import { PermissionKey } from '../../types/index.ts';
 
 export type NavTab =
   | 'dashboard'
+  | 'companies'
+  | 'branches'
   | 'customers'
   | 'monthly'
   | 'plans'
@@ -68,6 +72,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const navItems: NavItemConfig[] = [
     { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { key: 'companies', label: 'Empresas Parceiras', icon: Building2, requiredPermission: 'gerenciar_empresas', masterOnly: true },
+    { key: 'branches', label: 'Filiais & Unidades', icon: GitBranch, requiredPermission: 'gerenciar_filiais' },
     { key: 'customers', label: 'Clientes', icon: Users, requiredPermission: 'consultar_clientes' },
     { key: 'monthly', label: 'Mensalistas', icon: CalendarDays, requiredPermission: 'consultar_clientes' },
     { key: 'plans', label: 'Planos', icon: FileSpreadsheet },
@@ -83,7 +89,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     },
     { key: 'partners', label: 'Parceiros', icon: Handshake, requiredPermission: 'administrar_parceiros' },
     { key: 'commissions', label: 'Comissões', icon: DollarSign, requiredPermission: 'consultar_comissoes' },
-    { key: 'employees', label: 'Funcionários', icon: UserCheck, masterOnly: true },
+    { key: 'employees', label: 'Usuários & Equipe', icon: UserCheck, masterOnly: true },
     { key: 'reports', label: 'Relatórios', icon: BarChart3, requiredPermission: 'consultar_relatorios' },
     { key: 'settings', label: 'Configurações', icon: Settings },
     { key: 'audit', label: 'Auditoria', icon: ShieldCheck, masterOnly: true },
@@ -149,13 +155,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <p className="text-xs font-semibold text-white truncate">
                   {currentUser?.displayName || 'Usuário'}
                 </p>
-                <p className="text-[10px] text-slate-400 truncate flex items-center gap-1">
+                <p className="text-[10px] text-slate-400 truncate flex items-center gap-1 font-mono uppercase">
                   <span
                     className={`w-1.5 h-1.5 rounded-full ${
-                      isMasterOwner ? 'bg-purple-400' : 'bg-cyan-400'
+                      isMasterOwner
+                        ? 'bg-purple-400'
+                        : currentUser?.role === 'EMPRESA_ADMIN'
+                        ? 'bg-blue-400'
+                        : currentUser?.role === 'GERENTE_FILIAL'
+                        ? 'bg-purple-400'
+                        : 'bg-cyan-400'
                     }`}
                   />
-                  {isMasterOwner ? 'MASTER OWNER' : 'FUNCIONÁRIO'}
+                  {isMasterOwner
+                    ? 'MASTER OWNER'
+                    : currentUser?.role === 'EMPRESA_ADMIN'
+                    ? 'ADMIN EMPRESA'
+                    : currentUser?.role === 'GERENTE_FILIAL'
+                    ? 'GERENTE FILIAL'
+                    : currentUser?.role || 'COLABORADOR'}
                 </p>
               </div>
             </div>

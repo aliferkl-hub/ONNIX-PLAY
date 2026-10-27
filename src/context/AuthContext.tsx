@@ -26,6 +26,10 @@ interface AuthContextType {
   loading: boolean;
   isMasterOwner: boolean;
   masterCredentialsConfigured: boolean;
+  activeCompanyId: string; // 'TODAS' or specific company id
+  setActiveCompanyId: (companyId: string) => void;
+  canAccessCompany: (companyId?: string) => boolean;
+  canAccessBranch: (branchId?: string, companyId?: string) => boolean;
   hasPermission: (permission: PermissionKey) => boolean;
   loginWithGoogle: () => Promise<void>;
   loginMasterWithPassword: (password: string, code2fa?: string) => Promise<{ success: boolean; error?: string }>;
@@ -42,6 +46,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [masterCredentials, setMasterCredentials] = useState<MasterOwnerCredentials | null>(null);
+  const [activeCompanyId, setActiveCompanyIdState] = useState<string>(() => {
+    return localStorage.getItem('onnix_active_company') || 'TODAS';
+  });
+
+  const setActiveCompanyId = (id: string) => {
+    setActiveCompanyIdState(id);
+    localStorage.setItem('onnix_active_company', id);
+  };
 
   // Load master credentials and check if configured
   const refreshMasterCredentials = async () => {
@@ -60,6 +72,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (localSession && isMounted) {
           const parsed = JSON.parse(localSession) as UserProfile;
           setCurrentUser(parsed);
+          if (parsed.companyId && parsed.role !== 'MASTER_OWNER') {
+            setActiveCompanyIdState(parsed.companyId);
+          }
         }
 
         // Firebase Auth listener
@@ -101,19 +116,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                   uid: fbUser.uid,
                   email: employee.email,
                   displayName: employee.name,
-                  role: 'EMPLOYEE',
+                  role: employee.userRoleType || 'EMPLOYEE',
                   status: employee.status,
+                  companyId: employee.companyId,
+                  branchId: employee.branchId,
                   createdAt: employee.createdAt,
                   lastLogin: new Date().toISOString(),
                 };
                 setCurrentUser(empProfile);
+                if (employee.companyId) {
+                  setActiveCompanyId(employee.companyId);
+                }
                 localStorage.setItem('onnix_active_session', JSON.stringify(empProfile));
                 await DatabaseService.logAudit(
                   empProfile.email,
                   'LOGIN_GOOGLE_FUNCIONARIO',
                   'users',
                   fbUser.uid,
-                  `Funcionário ${employee.name} autenticado`
+                  `Colaborador ${employee.name} (${employee.role}) autenticado`
                 );
               } else {
                 console.warn('User not registered as employee or master owner:', email);
@@ -141,6 +161,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const masterCredentialsConfigured = useMemo(() => {
     return Boolean(masterCredentials?.isConfigured);
   }, [masterCredentials]);
+
+  // Authorization helper for multi-tenant company
+  const canAccessCompany = (targetCompanyId?: string): boolean => {
+    if (!currentUser) return false;
+    if (currentUser.role === 'MASTER_OWNER') return true;
+    if (!targetCompanyId) return true;
+    return currentUser.companyId === targetCompanyId;
+  };
+
+  // Authorization helper for branch
+  const canAccessBranch = (targetBranchId?: string, targetCompanyId?: string): boolean => {
+    if (!currentUser) return false;
+    if (currentUser.role === 'MASTER_OWNER') return true;
+    if (currentUser.role === 'EMPRESA_ADMIN') {
+      if (targetCompanyId && currentUser.companyId !== targetCompanyId) return false;
+      return true; // Empresa admin has access to all branches of their company
+    }
+    if (currentUser.branchId) {
+      if (!targetBranchId) return true;
+      return currentUser.branchId === targetBranchId;
+    }
+    return true;
+  };
 
   // Granular RBAC verification
   const hasPermission = (permission: PermissionKey): boolean => {
@@ -294,20 +337,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       uid: `emp-${emp.id}`,
       email: emp.email,
       displayName: emp.name,
-      role: 'EMPLOYEE',
+      role: emp.userRoleType || 'EMPLOYEE',
       status: emp.status,
+      companyId: emp.companyId,
+      branchId: emp.branchId,
       createdAt: emp.createdAt,
       lastLogin: new Date().toISOString(),
     };
 
     setCurrentUser(profile);
+    if (emp.companyId) {
+      setActiveCompanyId(emp.companyId);
+    }
     localStorage.setItem('onnix_active_session', JSON.stringify(profile));
     await DatabaseService.logAudit(
       profile.email,
       'LOGIN_FUNCIONARIO',
       'employee_profiles',
       emp.id,
-      `Funcionário ${emp.name} logado com sucesso`
+      `Colaborador ${emp.name} (${emp.role}) logado com sucesso`
     );
 
     return { success: true };
@@ -354,6 +402,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         loading,
         isMasterOwner,
         masterCredentialsConfigured,
+        activeCompanyId,
+        setActiveCompanyId,
+        canAccessCompany,
+        canAccessBranch,
         hasPermission,
         loginWithGoogle,
         loginMasterWithPassword,

@@ -12,7 +12,7 @@ import {
   Shield,
   AlertTriangle,
 } from 'lucide-react';
-import { Customer, CustomerStatus, Partner, EmployeeProfile, Plan, Contract, Invoice, Subscription } from '../../types/index.ts';
+import { Customer, CustomerStatus, Partner, EmployeeProfile, Plan, Contract, Invoice, Subscription, PartnerCompany, Branch } from '../../types/index.ts';
 import { maskCpf, formatCpf } from '../../lib/cpf.ts';
 import { formatBrDate } from '../../lib/date.ts';
 import { exportToCsv } from '../../lib/export.ts';
@@ -30,6 +30,8 @@ interface CustomerListProps {
   contracts: Contract[];
   invoices: Invoice[];
   subscriptions: Subscription[];
+  companies?: PartnerCompany[];
+  branches?: Branch[];
   onRefresh: () => void;
   onOpenContractGenerator: (customer: Customer) => void;
 }
@@ -42,6 +44,8 @@ export const CustomerList: React.FC<CustomerListProps> = ({
   contracts,
   invoices,
   subscriptions,
+  companies = [],
+  branches = [],
   onRefresh,
   onOpenContractGenerator,
 }) => {
@@ -215,7 +219,14 @@ export const CustomerList: React.FC<CustomerListProps> = ({
                       {customer.code}
                     </td>
                     <td className="py-3 px-4">
-                      <div className="font-semibold text-white">{customer.name}</div>
+                      <div className="font-semibold text-white flex items-center gap-2 flex-wrap">
+                        <span>{customer.name}</span>
+                        {customer.branchId && (
+                          <span className="text-[10px] px-1.5 py-0.5 bg-purple-950/70 text-purple-300 border border-purple-800/40 rounded font-normal">
+                            {branches.find(b => b.id === customer.branchId)?.name || 'Filial'}
+                          </span>
+                        )}
+                      </div>
                       <div className="text-[11px] text-slate-500 truncate max-w-xs">
                         {customer.street}, {customer.number} - {customer.neighborhood}
                       </div>
@@ -304,6 +315,8 @@ export const CustomerList: React.FC<CustomerListProps> = ({
         existingCustomers={customers}
         partners={partners}
         employees={employees}
+        companies={companies}
+        branches={branches}
       />
 
       {/* Customer Detail Profile */}

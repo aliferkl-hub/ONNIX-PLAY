@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
-import { Menu, Search, Bell, RefreshCw, Shield, Sparkles } from 'lucide-react';
+import { Menu, Search, Bell, RefreshCw, Shield, Sparkles, Building2, Globe } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.tsx';
 import { DatabaseService } from '../../lib/db.ts';
+import { PartnerCompany } from '../../types/index.ts';
 
 interface HeaderProps {
   onOpenMobileSidebar: () => void;
   pendingRemindersCount: number;
   onNavigateToWhatsApp: () => void;
   onRefreshData: () => void;
+  companies?: PartnerCompany[];
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -15,10 +17,13 @@ export const Header: React.FC<HeaderProps> = ({
   pendingRemindersCount,
   onNavigateToWhatsApp,
   onRefreshData,
+  companies = [],
 }) => {
-  const { currentUser, isMasterOwner } = useAuth();
+  const { currentUser, isMasterOwner, activeCompanyId, setActiveCompanyId } = useAuth();
   const [isRunningEngine, setIsRunningEngine] = useState(false);
   const [engineSuccessMsg, setEngineSuccessMsg] = useState<string | null>(null);
+
+  const activeCompany = companies.find(c => c.id === activeCompanyId);
 
   const handleRunRecurrence = async () => {
     setIsRunningEngine(true);
@@ -44,7 +49,7 @@ export const Header: React.FC<HeaderProps> = ({
       <div className="flex items-center gap-3">
         <button
           onClick={onOpenMobileSidebar}
-          className="lg:hidden p-2 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800"
+          className="lg:hidden p-2 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 cursor-pointer"
         >
           <Menu className="w-5 h-5" />
         </button>
@@ -54,6 +59,42 @@ export const Header: React.FC<HeaderProps> = ({
           <span>/</span>
           <span className="text-cyan-400">Portal de Gestão</span>
         </div>
+
+        {/* Company Context Switcher for Master Owner */}
+        {isMasterOwner && companies.length > 0 && (
+          <div className="hidden md:flex items-center gap-2 ml-3 pl-3 border-l border-slate-800">
+            <div className="flex items-center gap-1.5 bg-slate-950/70 border border-cyan-500/30 rounded-xl px-2.5 py-1 text-xs shadow-inner">
+              {activeCompanyId === 'TODAS' ? (
+                <Globe className="w-3.5 h-3.5 text-cyan-400 flex-shrink-0" />
+              ) : (
+                <Building2 className="w-3.5 h-3.5 text-purple-400 flex-shrink-0" />
+              )}
+              <select
+                value={activeCompanyId}
+                onChange={e => setActiveCompanyId(e.target.value)}
+                className="bg-transparent text-xs text-white font-medium focus:outline-none cursor-pointer pr-1"
+                title="Selecione o escopo da empresa para filtrar visão geral e operações"
+              >
+                <option value="TODAS" className="bg-slate-900 text-white">
+                  🌐 Rede Global (Todas as Empresas)
+                </option>
+                {companies.map(c => (
+                  <option key={c.id} value={c.id} className="bg-slate-900 text-white">
+                    🏢 {c.tradeName} ({c.code})
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        )}
+
+        {/* Current Company indicator for Non-Master users */}
+        {!isMasterOwner && activeCompany && (
+          <div className="hidden md:flex items-center gap-1.5 ml-3 pl-3 border-l border-slate-800 text-xs text-slate-300">
+            <Building2 className="w-3.5 h-3.5 text-cyan-400" />
+            <span className="font-semibold text-white">{activeCompany.tradeName}</span>
+          </div>
+        )}
       </div>
 
       {/* Center: Recurrence Engine Feedback Banner */}
